@@ -1,0 +1,47 @@
+# LLM-mode eval cases (require OPENAI_API_KEY and HEURISTIC_ONLY=false)
+# Run: python eval/run_eval.py --llm
+cases:
+  - id: llm_clean_partitioned_mart
+    fixture: eval/fixtures/sample_pr.json
+    mode: advisory
+    expect_passed: true
+    expect_risk: low
+    max_high_findings: 0
+    forbid_llm_fallback: true
+    forbid_finding_messages_containing:
+      - "SELECT *"
+      - "no PII changes"
+      - "missing partition filter"
+      - "does not include a partition filter"
+
+  - id: llm_oracle_rownum_dialect
+    fixture: eval/fixtures/pr_dialect_violation.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: high
+    min_requirements_findings: 1
+    forbid_llm_fallback: true
+    require_finding_messages_containing_any:
+      - "ROWNUM"
+      - "SELECT *"
+
+  - id: llm_pii_email_contradiction
+    fixture: eval/fixtures/pr_pii_violation.json
+    mode: advisory
+    expect_passed: false
+    expect_risk_in: [high, blocked]
+    min_security_findings: 1
+    forbid_llm_fallback: true
+    require_finding_messages_containing_any:
+      - "email"
+      - "PII"
+
+  - id: llm_select_star_cost
+    fixture: eval/fixtures/pr_select_star.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: high
+    min_requirements_findings: 1
+    forbid_llm_fallback: true
+    require_finding_messages_containing_any:
+      - "SELECT *"

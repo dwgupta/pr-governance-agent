@@ -4,6 +4,7 @@ Agentic GitHub PR review for **data engineering migration** workflows (on-prem â
 
 ## Documentation
 
+- [Problem definition, data processing & evaluation](docs/pr-governance-problem-data-and-evaluation.md)
 - [Technical design](docs/pr-governance-agent-technical-design.md)
 - [Architecture diagrams](docs/pr-governance-agent-architecture.md)
 
@@ -171,7 +172,16 @@ set HEURISTIC_ONLY=true
 pytest tests/ -q
 ```
 
-CI runs on every push/PR to `main` (`.github/workflows/ci.yml`): install, ingest, pytest, eval.
+CI runs on every push/PR to `main` (`.github/workflows/ci.yml`): install, ingest, pytest, heuristic eval.
+
+### LLM-mode eval (requires `OPENAI_API_KEY`)
+
+```bash
+export OPENAI_API_KEY=sk-...
+python eval/run_eval.py --llm
+```
+
+Uses `eval/cases_llm.yaml`. Skips gracefully if no API key is set. If the LLM fails, a warning is surfaced in results (`LLM review fallback ...`).
 
 ## Capstone planner skill
 
