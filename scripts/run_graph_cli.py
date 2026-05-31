@@ -61,6 +61,8 @@ def main() -> int:
         print(f"Actions: {result.get('github_actions_taken')}")
         if result.get("blockers"):
             print(f"Blockers: {result.get('blockers')}")
+        if result.get("warnings"):
+            print(f"Warnings: {result.get('warnings')}")
         if result.get("errors"):
             print(f"Errors: {result.get('errors')}")
 

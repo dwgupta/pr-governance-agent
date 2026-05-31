@@ -90,7 +90,24 @@ class ChromaStore:
         if not candidates:
             return []
 
-        if use_rerank and len(candidates) > 1:
+        if use_rerank:
             return rerank_chunks(query_text, candidates, top_k=final_k)
 
         return candidates[: max(1, final_k)]
+
+    def collection_count(self, collection_name: str) -> int:
+        return self.get_or_create_collection(collection_name).count()
+
+    def rag_index_warnings(self) -> list[str]:
+        """Return warnings when policy collections have not been ingested."""
+        warnings: list[str] = []
+        for collection_name, label in (
+            (REQUIREMENTS_COLLECTION, "requirements"),
+            (SECURITY_COLLECTION, "security policies"),
+        ):
+            if self.collection_count(collection_name) == 0:
+                warnings.append(
+                    f"Chroma '{label}' index is empty — policy citations are disabled. "
+                    "Run: python scripts/ingest_docs.py"
+                )
+        return warnings

@@ -53,6 +53,13 @@ with st.sidebar:
         st.write(f"Sandbox repo: `{settings.sandbox_repo}`")
     st.info("Set `USE_PR_FIXTURE=true` for offline demo without GitHub token.")
 
+    from pr_governance_agent.rag.chroma_store import ChromaStore
+
+    rag_warnings = ChromaStore().rag_index_warnings()
+    if rag_warnings:
+        for warning in rag_warnings:
+            st.warning(warning)
+
 pr_url = st.text_input(
     "GitHub PR URL",
     value="https://github.com/demo/migration-sandbox/pull/1",
@@ -105,6 +112,9 @@ if result:
 
     if result.get("blockers"):
         st.error("Blockers:\n" + "\n".join(f"- {b}" for b in result["blockers"]))
+
+    for warning in result.get("warnings") or []:
+        st.warning(warning)
 
     with st.expander("GitHub actions taken"):
         for action in result.get("github_actions_taken") or []:

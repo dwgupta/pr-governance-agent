@@ -51,6 +51,7 @@ class PRReviewState(TypedDict, total=False):
     github_actions_taken: list[str]
     notification_sent: bool
     errors: list[str]
+    warnings: list[str]
 
     # Observability
     token_usage: dict[str, int]
@@ -84,6 +85,7 @@ def initial_state(
         github_actions_taken=[],
         notification_sent=False,
         errors=[],
+        warnings=[],
         token_usage={},
         node_timings={},
     )

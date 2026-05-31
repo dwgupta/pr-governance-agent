@@ -9,24 +9,64 @@ Agentic GitHub PR review for **data engineering migration** workflows (on-prem â
 
 ## Prerequisites
 
-- Python 3.11+ (project `.venv` uses 3.11)
+- Python 3.11+
 - Optional: [Semgrep](https://semgrep.dev/) for `ENABLE_SAST=true`
 - Optional: Node.js if using the GitHub MCP server via `GITHUB_MCP_COMMAND`
 
-## Setup
+## Quick start (fresh clone)
+
+One-shot setup (Git Bash, macOS, or Linux):
+
+```bash
+git clone https://github.com/dwgupta/pr-governance-agent.git
+cd pr-governance-agent
+bash scripts/setup.sh
+```
+
+Then run the offline demo:
+
+```bash
+export USE_PR_FIXTURE=true
+export HEURISTIC_ONLY=true
+python scripts/run_graph_cli.py
+```
+
+## Setup (manual)
 
 ```bash
 cd capstone
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS/Linux
 
-pip install -r requirements.txt
-pip install -e ".[dev]"           # optional: pytest
+# Activate venv
+source .venv/Scripts/activate   # Windows Git Bash
+# source .venv/bin/activate     # macOS / Linux
+# .venv\Scripts\activate        # Windows CMD / PowerShell
 
-copy .env.example .env            # edit as needed
+pip install -e ".[dev]"
+cp .env.example .env            # macOS / Linux / Git Bash
+# copy .env.example .env        # Windows CMD
+```
+
+### Required: build the RAG index
+
+Policy citations **do not work** until you ingest the sample corpus into Chroma:
+
+```bash
 python scripts/ingest_docs.py
 ```
+
+If you skip this step, the agent still runs (heuristic checks work), but reviews will show warnings and no retrieved policy context. Streamlit and the CLI surface this explicitly.
+
+### Optional: local migration sample data
+
+Seed a SQLite `payments` table aligned with BigQuery partition examples (`event_date`, `payment_id`, `amount_usd`):
+
+```bash
+python scripts/seed_sample_db.py
+# writes data/sample.db (gitignored)
+```
+
+Useful for migration demos; the PR governance agent reads SQL from PR diffs/fixtures, not this database directly.
 
 ## LangSmith (tracing + token usage)
 
@@ -50,7 +90,18 @@ Tracing is off when `HEURISTIC_ONLY=true` (no LLM calls). Eval sets that flag by
 
 Uses fixtures under `eval/fixtures/` â€” no GitHub token required.
 
+**Git Bash / macOS / Linux:**
+
 ```bash
+export USE_PR_FIXTURE=true
+export HEURISTIC_ONLY=true
+python scripts/run_graph_cli.py
+python eval/run_eval.py
+```
+
+**Windows CMD:**
+
+```cmd
 set USE_PR_FIXTURE=true
 set HEURISTIC_ONLY=true
 python scripts/run_graph_cli.py
@@ -59,7 +110,17 @@ python eval/run_eval.py
 
 ## Run (live GitHub)
 
+**Git Bash / macOS / Linux:**
+
 ```bash
+export USE_PR_FIXTURE=false
+export GITHUB_TOKEN=ghp_...
+python scripts/run_graph_cli.py --pr-url https://github.com/owner/repo/pull/42
+```
+
+**Windows CMD:**
+
+```cmd
 set USE_PR_FIXTURE=false
 set GITHUB_TOKEN=ghp_...
 python scripts/run_graph_cli.py --pr-url https://github.com/owner/repo/pull/42
@@ -70,6 +131,8 @@ python scripts/run_graph_cli.py --pr-url https://github.com/owner/repo/pull/42
 ```bash
 streamlit run app/streamlit_app.py
 ```
+
+Set `USE_PR_FIXTURE=true` in `.env` for offline demo without GitHub API calls.
 
 ## Modes
 
@@ -83,19 +146,32 @@ streamlit run app/streamlit_app.py
 ```
 src/pr_governance_agent/   # Agent core
 app/streamlit_app.py       # UI
-scripts/                   # CLI, ingest, MCP bridge
+scripts/                   # CLI, ingest, setup, MCP bridge
 eval/                      # Offline eval cases
-data/sample_corpus/        # Policy documents
+data/sample_corpus/        # Policy documents (ingest into Chroma)
+data/sample.db             # Optional SQLite staging (seed script)
 docs/                      # Design + architecture
 ```
 
 ## Tests
 
+**Git Bash / macOS / Linux:**
+
 ```bash
+export USE_PR_FIXTURE=true
+export HEURISTIC_ONLY=true
+pytest tests/ -q
+```
+
+**Windows CMD:**
+
+```cmd
 set USE_PR_FIXTURE=true
 set HEURISTIC_ONLY=true
 pytest tests/ -q
 ```
+
+CI runs on every push/PR to `main` (`.github/workflows/ci.yml`): install, ingest, pytest, eval.
 
 ## Capstone planner skill
 

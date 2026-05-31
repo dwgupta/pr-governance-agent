@@ -44,10 +44,19 @@ def _build_rag_query(state: PRReviewState) -> str:
     return f"{meta.get('title', '')} {meta.get('body', '')} files: {files}"
 
 
+def _append_rag_index_warnings(state: PRReviewState, store: ChromaStore) -> None:
+    existing = list(state.get("warnings") or [])
+    for warning in store.rag_index_warnings():
+        if warning not in existing:
+            existing.append(warning)
+    state["warnings"] = existing
+
+
 def rag_requirements(state: PRReviewState) -> PRReviewState:
     with track_node(state, "rag_requirements"):
         settings = get_settings()
         store = ChromaStore()
+        _append_rag_index_warnings(state, store)
         state["requirements_chunks"] = store.retrieve(
             REQUIREMENTS_COLLECTION,
             _build_rag_query(state),
@@ -133,10 +142,21 @@ def synthesize_review(state: PRReviewState) -> PRReviewState:
             lines.append("- None")
 
         lines.extend(["", "## Retrieved policy context"])
-        for c in (state.get("requirements_chunks") or [])[:3]:
+        req_chunks = state.get("requirements_chunks") or []
+        sec_chunks = state.get("security_policy_chunks") or []
+        if not req_chunks and not sec_chunks:
+            lines.append(
+                "- _No policy chunks retrieved. Run `python scripts/ingest_docs.py` to build the RAG index._"
+            )
+        for c in req_chunks[:3]:
             lines.append(f"- Requirements: [{c['source']}] {c['section']}")
-        for c in (state.get("security_policy_chunks") or [])[:3]:
+        for c in sec_chunks[:3]:
             lines.append(f"- Security: [{c['source']}] {c['section']}")
+
+        if state.get("warnings"):
+            lines.extend(["", "## Warnings"])
+            for warning in state["warnings"]:
+                lines.append(f"- {warning}")
 
         state["review_markdown"] = "\n".join(lines)
     return state
