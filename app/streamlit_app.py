@@ -13,14 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from pr_governance_agent.config import get_settings
+
+# Load .env + LangSmith env before LangChain imports
+settings = get_settings()
+
 from pr_governance_agent.graph.builder import compile_graph
 from pr_governance_agent.state import initial_state
 
 st.set_page_config(page_title="PR Governance Agent", layout="wide")
 st.title("PR Governance Agent")
 st.caption("Agentic PR review for data engineering migration workflows (RAG + GitHub + optional SAST)")
-
-settings = get_settings()
 
 if "executor" not in st.session_state:
     st.session_state.executor = ThreadPoolExecutor(max_workers=1)
@@ -39,6 +41,13 @@ def _run_graph(pr_url: str, mode: str) -> dict:
 with st.sidebar:
     st.header("Settings")
     st.write(f"LLM enabled: **{settings.llm_enabled}**")
+    if settings.langsmith_enabled:
+        st.write(
+            f"LangSmith tracing: **on** (`{settings.langsmith_project}`) — "
+            "[dashboard](https://smith.langchain.com)"
+        )
+    else:
+        st.write("LangSmith tracing: **off** (set `LANGSMITH_API_KEY` + `LANGSMITH_TRACING=true`)")
     st.write(f"Write actions allowed: **{settings.allow_write_actions}**")
     if settings.sandbox_repo:
         st.write(f"Sandbox repo: `{settings.sandbox_repo}`")

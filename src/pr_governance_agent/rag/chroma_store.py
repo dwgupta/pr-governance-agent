@@ -4,10 +4,15 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 
 from pr_governance_agent.config import get_settings
+from pr_governance_agent.rag.reranker import rerank as rerank_chunks
 from pr_governance_agent.state import RetrievalChunk
 
 REQUIREMENTS_COLLECTION = "requirements"
 SECURITY_COLLECTION = "security_policies"
+
+HNSW_SPACE = "cosine"
+HNSW_CONSTRUCTION_EF = 100
+HNSW_SEARCH_EF = 50
 
 
 class ChromaStore:
@@ -23,7 +28,11 @@ class ChromaStore:
     def get_or_create_collection(self, name: str):
         return self._client.get_or_create_collection(
             name=name,
-            metadata={"hnsw:space": "cosine"},
+            metadata={
+                "hnsw:space": HNSW_SPACE,
+                "hnsw:construction_ef": HNSW_CONSTRUCTION_EF,
+                "hnsw:search_ef": HNSW_SEARCH_EF,
+            },
         )
 
     def query(
@@ -51,13 +60,37 @@ class ChromaStore:
             meta = metas[i] if i < len(metas) else {}
             dist = dists[i] if i < len(dists) else 1.0
             score = max(0.0, 1.0 - dist)
-            chunks.append(
-                RetrievalChunk(
-                    id=doc_id,
-                    text=docs[i] if i < len(docs) else "",
-                    source=str(meta.get("source", "unknown")),
-                    section=str(meta.get("section", "")),
-                    score=score,
-                )
-            )
+            chunk: RetrievalChunk = {
+                "id": doc_id,
+                "text": docs[i] if i < len(docs) else "",
+                "source": str(meta.get("source", "unknown")),
+                "section": str(meta.get("section", "")),
+                "score": score,
+            }
+            doc_title = meta.get("doc_title")
+            if doc_title:
+                chunk["doc_title"] = str(doc_title)
+            chunks.append(chunk)
         return chunks
+
+    def retrieve(
+        self,
+        collection_name: str,
+        query_text: str,
+        retrieve_n: int | None = None,
+        top_k: int | None = None,
+        enable_rerank: bool | None = None,
+    ) -> list[RetrievalChunk]:
+        settings = get_settings()
+        wide_n = retrieve_n if retrieve_n is not None else settings.rag_retrieve_n
+        final_k = top_k if top_k is not None else settings.rag_top_k
+        use_rerank = enable_rerank if enable_rerank is not None else settings.rag_rerank_enabled
+
+        candidates = self.query(collection_name, query_text, n_results=wide_n)
+        if not candidates:
+            return []
+
+        if use_rerank and len(candidates) > 1:
+            return rerank_chunks(query_text, candidates, top_k=final_k)
+
+        return candidates[: max(1, final_k)]

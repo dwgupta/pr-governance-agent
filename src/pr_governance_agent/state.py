@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 class RetrievalChunk(TypedDict):
@@ -7,6 +7,8 @@ class RetrievalChunk(TypedDict):
     source: str
     section: str
     score: float
+    doc_title: NotRequired[str]
+    vector_score: NotRequired[float]
 
 
 class Finding(TypedDict):

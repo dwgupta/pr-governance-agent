@@ -46,22 +46,26 @@ def _build_rag_query(state: PRReviewState) -> str:
 
 def rag_requirements(state: PRReviewState) -> PRReviewState:
     with track_node(state, "rag_requirements"):
+        settings = get_settings()
         store = ChromaStore()
-        state["requirements_chunks"] = store.query(
+        state["requirements_chunks"] = store.retrieve(
             REQUIREMENTS_COLLECTION,
             _build_rag_query(state),
-            n_results=5,
+            retrieve_n=settings.rag_retrieve_n,
+            top_k=settings.rag_top_k,
         )
     return state
 
 
 def rag_security_policies(state: PRReviewState) -> PRReviewState:
     with track_node(state, "rag_security_policies"):
+        settings = get_settings()
         store = ChromaStore()
-        state["security_policy_chunks"] = store.query(
+        state["security_policy_chunks"] = store.retrieve(
             SECURITY_COLLECTION,
             _build_rag_query(state),
-            n_results=5,
+            retrieve_n=settings.rag_retrieve_n,
+            top_k=settings.rag_top_k,
         )
     return state
 

@@ -28,6 +28,24 @@ copy .env.example .env            # edit as needed
 python scripts/ingest_docs.py
 ```
 
+## LangSmith (tracing + token usage)
+
+1. Sign up at [smith.langchain.com](https://smith.langchain.com).
+2. **Settings → API Keys → Create API Key** (value starts with `lsv2_pt_...`).
+3. Add to `.env`:
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_pt_your_key_here
+LANGSMITH_PROJECT=pr-governance-agent
+```
+
+4. Run the agent (CLI or Streamlit). Each LLM call appears under your project in the LangSmith UI with **token counts** and latency.
+
+Legacy names `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, and `LANGCHAIN_PROJECT` also work.
+
+Tracing is off when `HEURISTIC_ONLY=true` (no LLM calls). Eval sets that flag by default.
+
 ## Run (offline demo)
 
 Uses fixtures under `eval/fixtures/` — no GitHub token required.

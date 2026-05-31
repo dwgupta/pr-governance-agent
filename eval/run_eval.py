@@ -13,11 +13,15 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from pr_governance_agent.graph.builder import compile_graph
-from pr_governance_agent.state import initial_state
-
 os.environ["USE_PR_FIXTURE"] = "true"
 os.environ["HEURISTIC_ONLY"] = "true"  # deterministic eval
+
+from pr_governance_agent.config import get_settings
+
+get_settings()
+
+from pr_governance_agent.graph.builder import compile_graph
+from pr_governance_agent.state import initial_state
 
 
 def _count_critical(findings: list) -> int:

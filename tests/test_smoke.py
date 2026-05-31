@@ -63,8 +63,16 @@ def test_chroma_store_query():
     from pr_governance_agent.rag.chroma_store import REQUIREMENTS_COLLECTION, ChromaStore
 
     store = ChromaStore()
-    chunks = store.query(REQUIREMENTS_COLLECTION, "partition event_date BigQuery", n_results=3)
     if store.get_or_create_collection(REQUIREMENTS_COLLECTION).count() == 0:
         pytest.skip("Run scripts/ingest_docs.py first")
+
+    chunks = store.retrieve(
+        REQUIREMENTS_COLLECTION,
+        "partition event_date BigQuery",
+        retrieve_n=10,
+        top_k=3,
+        enable_rerank=False,
+    )
     assert len(chunks) >= 1
     assert chunks[0]["text"]
+    assert "BigQuery Migration Engineering Requirements" in chunks[0]["text"] or "event_date" in chunks[0]["text"]

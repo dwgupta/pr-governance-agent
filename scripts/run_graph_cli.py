@@ -12,6 +12,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from pr_governance_agent.config import get_settings
+
+get_settings()  # LangSmith env before LangChain imports
+
 from pr_governance_agent.graph.builder import compile_graph
 from pr_governance_agent.state import initial_state
 

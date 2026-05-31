@@ -157,9 +157,51 @@ Checkpoints: `data/checkpoints/` via `SqliteSaver`.
 
 **Ingestion:** `python scripts/ingest_docs.py` — markdown from `data/sample_corpus/`, optional PDF via `pypdf`.
 
-**Chunking:** ~800 tokens with overlap 100; metadata: `source`, `section`.
+### Chunking strategy (section-first, size-bounded fallback)
 
-**Citations:** `[source:section]` in review markdown.
+After reviewing the sample corpus (`bigquery_migration_requirements.md`, `dialect_conversion_guide.md`, `security_pii_policy.md`), each file uses an H1 title plus `##` sections with one governance rule per section (~20–40 words). The dialect guide includes a markdown mapping table that must stay intact.
+
+**Primary unit:** one `##` section = one chunk when ≤ 512 tokens.
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Max section tokens | 512 | Token count via `tiktoken` (`cl100k_base`) |
+| Table section hard cap | 1024 | Keeps Oracle→BigQuery table whole |
+| Fallback overlap | 100 tokens | Only when a section exceeds max tokens |
+| Context prefix | `{H1} > {section}\n\n` | Fixes previously dropped document titles |
+| Metadata | `source`, `section`, `doc_title` | Used in review citations |
+
+**PDF path:** split on `#` headings or ALL-CAPS lines; fall back to token-window on flat text.
+
+Implementation: [`src/pr_governance_agent/rag/ingest_markdown.py`](../src/pr_governance_agent/rag/ingest_markdown.py).
+
+### Vector index: HNSW + cosine
+
+Chroma collections use **HNSW** (Hierarchical Navigable Small World) with **cosine** distance. This fits the POC because:
+
+- Corpus is small (~11 chunks today; expected tens to low hundreds)
+- Sub-millisecond query latency with no extra ops overhead
+- Cosine space matches Chroma's default embedding model (`all-MiniLM-L6-v2`)
+- Dual collections keep each search graph small
+
+HNSW tuning constants in [`chroma_store.py`](../src/pr_governance_agent/rag/chroma_store.py): `construction_ef=100`, `search_ef=50`.
+
+### Two-stage retrieval (retrieve → rerank → top-k)
+
+1. **Wide recall:** HNSW query with `RAG_RETRIEVE_N=20` (default)
+2. **Re-rank:** `sentence-transformers` CrossEncoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) scores query–passage pairs
+3. **Final top-k:** Return `RAG_TOP_K=5` chunks to LLM eval and citations
+
+Cross-encoder score replaces vector similarity in `RetrievalChunk.score`; original vector score preserved as `vector_score` for debugging. If the reranker fails to load, fall back to vector order.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RAG_RETRIEVE_N` | 20 | Wide recall from HNSW |
+| `RAG_TOP_K` | 5 | Chunks passed to eval nodes |
+| `RAG_RERANK_ENABLED` | true | Toggle cross-encoder reranking |
+| `RAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Reranker model |
+
+**Citations:** `[source:section]` in review markdown (includes doc title in chunk text).
 
 ---
 
@@ -198,6 +240,10 @@ Checkpoints: `data/checkpoints/` via `SqliteSaver`.
 | `SANDBOX_REPO` | `owner/repo` allowlist for writes |
 | `USE_PR_FIXTURE` | Offline PR data |
 | `CHROMA_PERSIST_DIR` | `data/chroma` |
+| `RAG_RETRIEVE_N` | Wide recall before rerank (default 20) |
+| `RAG_TOP_K` | Final chunks after rerank (default 5) |
+| `RAG_RERANK_ENABLED` | Cross-encoder reranking toggle |
+| `RAG_RERANK_MODEL` | Reranker model name |
 | `ENABLE_SAST` | Run Semgrep if true |
 | `SMTP_*` | Optional email (stub uses log file) |
 
@@ -216,7 +262,7 @@ Checkpoints: `data/checkpoints/` via `SqliteSaver`.
 | 7 | Auto mode + fixture pass | Actions logged only if flags on |
 | 8 | Empty diff | Graceful message |
 
-**Metrics:** retrieval recall@5 on labeled queries; zero false merges in advisory; tool success rate for `ingest_pr`.
+**Metrics:** post-rerank retrieval recall@5 on labeled queries; zero false merges in advisory; tool success rate for `ingest_pr`.
 
 ---
 
@@ -266,6 +312,8 @@ langgraph>=0.2.60
 langchain-core>=0.3.0
 langchain-openai>=0.2.0
 chromadb>=0.5.0
+sentence-transformers>=3.0.0
+tiktoken>=0.7.0
 streamlit>=1.28.0
 pydantic-settings>=2.0.0
 pypdf>=4.0.0

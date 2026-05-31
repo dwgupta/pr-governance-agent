@@ -152,10 +152,12 @@ sequenceDiagram
   UI->>LG: invoke PRReviewState
   LG->>GH: fetch_pr diff metadata
   GH-->>LG: patches changed_files
-  LG->>CH: query requirements
-  CH-->>LG: policy chunks
-  LG->>CH: query security_policies
-  CH-->>LG: security chunks
+  LG->>CH: query requirements retrieve_n=20
+  CH-->>LG: candidate chunks
+  LG->>LG: CrossEncoder rerank top_k=5
+  LG->>CH: query security_policies retrieve_n=20
+  CH-->>LG: candidate chunks
+  LG->>LG: CrossEncoder rerank top_k=5
   opt ENABLE_SAST
     LG->>LG: Semgrep on patches
   end
@@ -198,23 +200,42 @@ sequenceDiagram
 How policy documents enter the vector store.
 
 ```mermaid
-flowchart LR
+flowchart TD
   MD[data/sample_corpus/*.md]
   PDF[data/sample_corpus/*.pdf]
   INGEST[scripts/ingest_docs.py]
-  SPLIT[Chunk_and_metadata]
-  CHROMA[(ChromaDB)]
+  H1[Extract H1 title]
+  SPLIT[Split on ## headings]
+  CHECK{Section > 512 tokens?}
+  TABLE{Contains table?}
+  ATOMIC[Single section chunk]
+  FALLBACK[Token window split overlap 100]
+  TABLEKEEP[Keep table section up to 1024 tokens]
+  PREFIX[Prepend doc_title > section]
+  CHROMA[(ChromaDB HNSW cosine)]
   REQ[requirements collection]
   SEC[security_policies collection]
 
   MD --> INGEST
   PDF --> INGEST
+  INGEST --> H1
   INGEST --> SPLIT
-  SPLIT --> REQ
-  SPLIT --> SEC
+  SPLIT --> TABLE
+  TABLE -->|yes| TABLEKEEP
+  TABLE -->|no| CHECK
+  CHECK -->|no| ATOMIC
+  CHECK -->|yes| FALLBACK
+  H1 --> PREFIX
+  ATOMIC --> PREFIX
+  FALLBACK --> PREFIX
+  TABLEKEEP --> PREFIX
+  PREFIX --> REQ
+  PREFIX --> SEC
   REQ --> CHROMA
   SEC --> CHROMA
 ```
+
+**Chunking rationale:** Sample corpus files are short policy markdown with one rule per `##` section. Section-first chunking preserves rule boundaries and keeps the dialect conversion table intact. Token-bounded fallback handles future long Confluence exports.
 
 ---
 
@@ -230,7 +251,9 @@ capstone/
 ├── src/pr_governance_agent/
 │   ├── graph/                    # LangGraph builder + nodes
 │   ├── mcp/github_client.py      # GitHub REST / fixture / MCP hook
-│   ├── rag/chroma_store.py       # Vector retrieval
+│   ├── rag/chroma_store.py       # HNSW retrieval + rerank orchestration
+│   ├── rag/reranker.py           # CrossEncoder reranking
+│   ├── rag/ingest_markdown.py    # Section-first chunking
 │   ├── security/sast_runner.py   # Optional Semgrep
 │   └── notifications/email.py    # SMTP or log stub
 └── data/
@@ -240,7 +263,31 @@ capstone/
 
 ---
 
-## 8. Configuration gates
+## 8. RAG retrieval (online)
+
+Two-stage pipeline used by `rag_requirements` and `rag_security_policies` nodes.
+
+```mermaid
+sequenceDiagram
+  participant Node as rag_node
+  participant Chroma as ChromaDB_HNSW
+  participant Rerank as CrossEncoder
+  participant Eval as evaluate_node
+
+  Node->>Chroma: query retrieve_n=20 cosine
+  Chroma-->>Node: candidate chunks with vector scores
+  Node->>Rerank: score query vs each candidate
+  Rerank-->>Node: reranked by relevance
+  Node->>Eval: top_k=5 chunks with citations
+```
+
+**Why HNSW:** Small policy corpus (tens to hundreds of chunks), sub-ms latency, cosine matches default embeddings. Wide recall (N=20) compensates for approximate search; cross-encoder reranking improves precision before LLM eval.
+
+**Fallback:** If reranker model fails to load, return vector-order top-k.
+
+---
+
+## 9. Configuration gates
 
 ```mermaid
 flowchart TD
