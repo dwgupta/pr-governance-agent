@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pr-governance-agent"
+version = "0.1.0"
+description = "Agentic PR governance for data engineering migration workflows"
+readme = "docs/pr-governance-agent-technical-design.md"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph>=0.2.60",
+  "langchain-core>=0.3.0",
+  "langchain-openai>=0.2.0",
+  "chromadb>=0.5.0",
+  "streamlit>=1.28.0",
+  "pydantic-settings>=2.0.0",
+  "pypdf>=4.0.0",
+  "httpx>=0.27.0",
+  "pyyaml>=6.0.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

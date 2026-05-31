@@ -1,0 +1,119 @@
+---
+description: Capstone POC Planner — Phase 5: Tech stack
+alwaysApply: false
+---
+
+# Phase 5 — Tech stack
+
+## Purpose
+
+Pick a stack that matches the project and the student. Students have different exposure (deep LangGraph experience vs none; comfortable with raw API vs needing scaffolding), so ask preferences first, then recommend.
+
+## Preconditions
+
+- Phase 4 complete: resource estimate accepted by the student.
+
+## Process
+
+### Ask the student their preferences
+
+Present these dimensions as questions, not as a fait accompli. The student should weigh in on each before you recommend anything.
+
+**1. Model provider preference?**
+- Anthropic (Claude)
+- OpenAI (GPT)
+- Google (Gemini)
+- Open-weight via API (Llama / Qwen / Mistral via Together, Groq, Fireworks)
+- Open-weight self-hosted (Ollama, vLLM)
+- Mixed (specify which model for which step)
+
+Ask if they have credits / access constraints — students often have free credits with one provider that should bias the choice.
+
+**2. Agent / orchestration framework preference?** (only ask if project is agentic or has multi-step LLM logic)
+- None — raw API calls
+- LangGraph
+- LlamaIndex (workflows or agent abstractions)
+- OpenAI Agents SDK
+- CrewAI
+- Custom thin layer
+- Other
+
+Note their experience level with each — if they've never used LangGraph but it's their first instinct, ask why.
+
+**3. Retrieval stack?** (only ask if RAG is involved)
+- Vector DB choice: Qdrant, Pinecone, Weaviate, pgvector, Chroma, in-memory FAISS
+- Embedding model: OpenAI text-embedding-3, Cohere embed v3, BGE, Voyage, open-weight
+- Reranker (or none): Cohere Rerank, BGE reranker, Voyage, cross-encoder
+- Hybrid search (BM25 + vector) or pure vector
+- Index structure preferences if any
+
+**4. Orchestration / hosting?**
+- Local only (Streamlit / CLI on laptop)
+- Modal (serverless, GPU-friendly)
+- Vercel / Render / Railway (web hosting)
+- Hugging Face Spaces
+- Self-hosted Docker / Kubernetes
+- Whatever's easiest for demo
+
+**5. Frontend?**
+- Streamlit (fastest to ship)
+- Gradio (good for ML demos)
+- Next.js / React (production-feel but more work)
+- CLI only
+- API only (no frontend)
+
+**6. Observability / logging?**
+- Langfuse (open source, popular in this cohort's stack)
+- Arize Phoenix
+- LangSmith (if using LangChain ecosystem)
+- Custom logging
+- None for POC (acceptable but flag for production)
+
+### Then recommend
+
+Once the student has shared preferences, recommend a final stack with **reasoning for each choice**. Format:
+
+```
+Recommended stack:
+
+- Model: [choice] — because [reason tied to the project's needs, not just "it's good"]
+- Framework: [choice or "raw API"] — because [...]
+- Retrieval (if applicable): [choice] — because [...]
+- Storage: [choice] — because [...]
+- Hosting: [choice] — because [...]
+- Frontend: [choice] — because [...]
+- Observability: [choice] — because [...]
+```
+
+### Push back when warranted
+
+If the student's preferences would lead to a bad outcome, **say so directly**. Examples:
+
+- "You said you want to fine-tune a 7B model for sentiment classification, but the project description suggests this is a 5-class problem on short text — a prompted frontier model would beat the fine-tune for a fraction of the engineering cost. Want me to recommend a prompting approach instead?"
+
+- "You're suggesting LangGraph for what's essentially a single LLM call + one tool. The framework overhead is more code than the actual logic. Raw API calls would be 30 lines instead of 200. Reconsider?"
+
+- "You're picking Pinecone, but your dataset is 500 documents. pgvector or in-memory FAISS would be free and faster to set up. Pinecone is overkill at this scale."
+
+Make the recommendation in one round. If the student pushes back with a real reason ("I want to learn Pinecone for my resume"), accept it and document the reasoning in the spec — that's a legitimate constraint.
+
+## Output contract
+
+Before moving to Phase 6:
+
+- [ ] Student has shared preferences (or stated "no preference, recommend") on every applicable dimension
+- [ ] You've recommended a final stack with reasoning per choice
+- [ ] Any pushback you had on the student's preferences was raised and resolved one way or another
+- [ ] Final stack is documented for use in Phase 7 spec section 7
+
+## Project-type notes
+
+- **RAG-heavy**: spend the most time on retrieval stack questions. The student should be able to articulate *why* they're picking dense vs hybrid, which embedding model and why, and whether reranking is justified at their scale. If they can't, that's a teaching moment.
+
+- **Agentic**: the framework choice matters most. Push hard against framework choice that doesn't match the agent's complexity. A 3-tool agent doesn't need LangGraph; a 15-tool multi-agent system probably does. Also ask about MCP — if the agent talks to external services, MCP is often the right choice over custom integrations.
+
+- **Fine-tuning**: stack questions shift to training framework (Hugging Face Trainer, axolotl, Unsloth, MLX-LM if on Mac), where training runs (Colab, Modal, RunPod, local), and serving format (GGUF, AWQ, raw HF, vLLM). Ask explicitly.
+
+- **Multimodal**: model choice is the dominant question. Open multimodal models (Qwen-VL, Llava, Pixtral) vs frontier APIs (Claude with vision, GPT-4o, Gemini). Trade-offs are very different from text-only.
+
+- **Inference/systems**: stack questions are mostly about serving framework (vLLM, TGI, MLX, llama.cpp), benchmarking harness, and quantization tooling. Ask about target hardware specifically.

@@ -1,0 +1,24 @@
+{
+  "pr_url": "https://github.com/demo/migration-sandbox/pull/3",
+  "repo": "demo/migration-sandbox",
+  "pr_number": 3,
+  "pr_metadata": {
+    "title": "Add customer email to mart",
+    "body": "No PII in this change",
+    "state": "open",
+    "user": "data-engineer",
+    "base": "main",
+    "head": "feature/email-col"
+  },
+  "changed_files": ["models/marts/dim_customer.sql"],
+  "patches": [
+    {
+      "filename": "models/marts/dim_customer.sql",
+      "status": "modified",
+      "patch": "+++ b/models/marts/dim_customer.sql\n+, customer_email AS email",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "ci_status": null
+}

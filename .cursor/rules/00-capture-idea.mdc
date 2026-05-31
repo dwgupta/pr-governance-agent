@@ -1,0 +1,47 @@
+---
+description: Capstone POC Planner — Phase 0: Capture the idea
+alwaysApply: false
+---
+
+# Phase 0 — Capture the idea
+
+## Purpose
+
+Force the idea into a description concrete enough to evaluate. Most capstone planning fails because the idea was never fully formed.
+
+## Preconditions
+
+None — this is the entry point. Don't classify the project type yet (that happens in Phase 1); just listen for signals while capturing the description.
+
+## Process
+
+Ask the student to describe their idea in 2–4 sentences. If they give you a one-liner, ask follow-up questions:
+
+- What problem does it solve?
+- Who specifically has that problem?
+- What does the user experience look like? Walk me through a first-time user's path.
+- What would the end output / deliverable / artifact be?
+
+Keep asking until you have a description concrete enough that you could explain the project to another person without making things up.
+
+**Acceptable description (concrete):**
+
+> "An AI assistant for radiology residents that takes a chest X-ray plus the patient's symptom notes and generates a structured first-draft report with differential diagnoses ranked by likelihood. Resident reviews and edits before signing off. The point is to cut the time-to-first-draft from 15 minutes to 2."
+
+**Not acceptable (still vague):**
+
+> "An AI agent that helps doctors."
+> "Something with RAG and agents for productivity."
+> "A multimodal assistant for businesses."
+
+If after one round of follow-up questions the description is still in the "not acceptable" zone, stop. Tell the student honestly: the idea isn't formed enough to evaluate yet. Suggest they spend 30 minutes writing a one-page description (problem, user, user journey, deliverable) and come back. Don't try to rescue it by inventing detail.
+
+## Output contract
+
+Before moving to Phase 1, you must have:
+
+- [ ] A 2–4 sentence description of the project
+- [ ] A clear statement of who the user is (one specific segment, not "people" or "businesses")
+- [ ] A clear statement of what the user gets out of using it
+
+Echo these back to the student in your own words to confirm before proceeding: "Here's how I understand your idea — does this match?" Wait for confirmation.

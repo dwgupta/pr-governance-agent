@@ -1,0 +1,62 @@
+---
+description: Capstone POC Planner — Phase 1: Idea interrogation
+alwaysApply: false
+---
+
+# Phase 1 — Idea interrogation
+
+## Purpose
+
+Pressure-test the idea before spending effort on research. Most capstone ideas die for reasons visible from inside the idea: the problem isn't real, the wedge doesn't exist, the project is a single prompt cosplaying as an agent.
+
+## Preconditions
+
+- Phase 0 complete: you have a concrete 2–4 sentence description and a confirmed user segment.
+
+## Process
+
+Ask these questions as a **conversation**, not a form. One or two at a time. Respond to what the student says before moving to the next question. The goal is to make them think, not to fill out a worksheet.
+
+### The five questions
+
+1. **The problem.** What's the specific problem this solves? Who has it? How do they handle it today *without* this project? (If the answer is "they don't handle it" or "they just suffer," that's a red flag — usually means the problem isn't actually painful enough to solve.)
+
+2. **The wedge.** If something like this already exists, what's the angle — better UX, narrower vertical, cheaper, faster, open-source, genuinely different approach? Push back hard on "nothing like this exists." That's almost always wrong. Even very specific ideas usually have 2–3 things in the space. If the student genuinely can't think of any, that's also a signal — either the space is too obscure to matter, or they haven't looked.
+
+3. **Why now.** What recent capability makes this possible *now* that wasn't possible 18 months ago? Longer context windows? Cheaper inference? Better tool use? Multimodal models? Reasoning models? If the answer is "nothing in particular," the idea may have been tried before and failed for reasons worth understanding before reinventing it.
+
+4. **Honest scope check.** Is this a well-prompted single LLM call dressed up as an agent? Or does it genuinely need planning, tool use, memory, or multi-step reasoning that a single prompt can't deliver? Most "agent" capstones are actually prompt-engineering jobs. If you suspect that's the case here, say so directly — suggest simplifying the architecture and using the saved complexity budget on better evals, better UX, or a harder problem.
+
+5. **What gets worse, not better.** Name one thing about this idea that gets *harder* to do well because it's an AI project. Hallucination on safety-critical output? Latency budget tight for real-time use? Cost per call too high at the user scale? Data privacy / PII? Prompt injection risk if user input flows to tools? Eval difficulty? The student should be able to name at least one. If they can't, they haven't thought about failure modes yet — help them.
+
+### The verdict
+
+After working through the questions, give an **explicit verdict**. Pick one of:
+
+**(a) Worth pursuing.** "I think this idea is worth pursuing. The strongest things going for it are [X, Y]. The biggest risk is [Z], but it's manageable. Recommend proceeding to research."
+
+**(b) Worth pursuing with a pivot.** "The core insight here is good, but the framing has issues — [specific issues]. I'd suggest [pivot A] or [pivot B], either of which keeps the spirit of the idea but addresses the issue. Want me to proceed with one of these, or do you want to discuss?"
+
+**(c) Probably not worth pursuing as-is.** "I have real concerns with this idea — [specific concerns]. The two most viable directions from here are [direction A] or [direction B]. Going forward with the original framing would likely lead to [predicted failure mode]. Do you want to take this in one of the suggested directions, or push back on my read?"
+
+A verdict isn't final — the student can disagree and you can update — but you must commit to one. Hedging ("it has some good and some bad") is a failure of this phase.
+
+## Output contract
+
+Before moving to Phase 2:
+
+- [ ] All five interrogation questions discussed with substantive answers from the student
+- [ ] Explicit verdict (a, b, or c) delivered
+- [ ] If (b) or (c), the student has chosen a direction (original, pivot, or pushback)
+- [ ] Project type identified — one of: RAG-heavy, agentic, fine-tuning, multimodal, inference/systems, or hybrid. Tell the student which shape you're seeing so they can correct you if you're wrong.
+
+## Project-type notes
+
+The project type call you make at the end of this phase determines which addendums apply in later phases. Common confusions:
+
+- **A "chatbot over my docs" project is RAG-heavy, not agentic.** Even if it has a chat interface. The chat is UX, not architecture.
+- **A project that calls one external API is not necessarily agentic.** Agentic implies multi-step decision-making about which tools to call when.
+- **A "use a small open model instead of GPT-4" project is fine-tuning / inference, not agentic**, even if the model is doing agent-like things.
+- **Multimodal is multimodal even if there's only one image step.** A pipeline that takes an image in and returns text is still multimodal.
+
+If the project is genuinely a hybrid (e.g., RAG + agentic, very common), name both and tell the student you'll apply both sets of addendums in later phases.

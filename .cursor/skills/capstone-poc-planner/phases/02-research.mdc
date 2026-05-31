@@ -1,0 +1,107 @@
+---
+description: Capstone POC Planner — Phase 2: Research with primary sources
+alwaysApply: false
+---
+
+# Phase 2 — Research with primary sources
+
+## Purpose
+
+Build a grounded understanding of the landscape and state of the art before PMF analysis. Output: a vetted source list the student has explicitly approved.
+
+## Preconditions
+
+- Phase 1 complete: the idea has survived interrogation (in original or pivoted form) and a project type has been identified.
+
+## Process
+
+### What to research
+
+Run searches and collect:
+
+1. **Existing solutions** (3–6 named items). Products, open-source projects, or research prototypes that overlap with the idea. For each: what it does, who built it, its approach, where the student's idea differs.
+
+2. **State of the art on the core technical capability.** Find the current benchmark or paper for the key capability the project depends on. Examples:
+   - Long-context retrieval → RULER, LongBench
+   - Agentic tool use → τ-bench, BFCL, SWE-bench
+   - RAG quality → BEIR, MTEB
+   - Code generation → HumanEval, SWE-bench
+   - Reasoning → GPQA, AIME-style benchmarks
+   - Multimodal → MMMU, MathVista
+   - Find what's actually relevant to the project. Don't cite benchmarks just because they're famous.
+
+3. **Cost and latency reality.** Per-token pricing for the model tiers the project likely needs. Get this from official pricing pages (anthropic.com/pricing, openai.com/pricing, etc.), not blog posts. Note any free tiers, rate limits, or batch pricing.
+
+4. **One or two arXiv papers** if the project touches an active research area (memory systems, retrieval, planning, evals, fine-tuning). Cite by title + authors + arXiv ID.
+
+### Source quality rules
+
+**Prefer (primary sources):**
+- arXiv papers (linked by arXiv ID, e.g. arXiv:2401.12345)
+- Official documentation (langchain.com/docs, docs.llamaindex.ai, docs.anthropic.com, platform.openai.com/docs, etc.)
+- Engineering blogs from the company that built the thing (anthropic.com/research, openai.com/blog, deepmind.google, github engineering blog, databricks blog, etc.)
+- Peer-reviewed venues (NeurIPS, ICLR, ICML, ACL, EMNLP)
+- Primary-source benchmark sites (the official benchmark page, not a derivative writeup)
+
+**Avoid (unless no primary source exists):**
+- Medium posts (unless author is a verifiable practitioner with a track record)
+- "Top 10 X in 2026" listicles
+- Newsletters that aggregate without primary research
+- LinkedIn / Twitter / X threads (unless from named practitioners)
+- AI-generated SEO content (telltale: lists of 7 things, generic prose, no specific numbers)
+
+If you can find only a non-primary source for something important, **say so explicitly** when you present sources. Don't hide it.
+
+### Present the approval block
+
+After researching, present this block to the student verbatim (filling in your findings):
+
+```
+=== Sources for Phase 2 review ===
+
+Existing solutions:
+1. [Name] — [URL] — [one line on what they do and how the student's idea differs]
+2. ...
+
+State of the art:
+- [Benchmark/paper name] — [URL or arXiv ID] — [current SOTA result, one line on relevance]
+
+Cost / latency:
+- [Provider model tier] — [$/MTok or $/Mtok in/out] — source: [official pricing page]
+- ...
+
+Research papers:
+- [Title], [authors], arXiv:[id] — [one line on relevance]
+
+Sources I looked for but couldn't find primary on:
+- [topic] — [why this matters / what I'd want to know] — [non-primary source I found, if any]
+
+Reply 'proceed' to continue to PMF analysis, or tell me what to dig deeper on.
+```
+
+**Wait for the student's explicit "proceed" before moving on.** If they ask for more depth, do another pass and re-present the block.
+
+If you can't find primary sources for any of the four research areas, say so directly and ask whether to retry with different angles or proceed with weaker grounding noted.
+
+## Output contract
+
+Before moving to Phase 3:
+
+- [ ] Approval block presented with at least: 3 existing solutions, 1 SOTA reference, current pricing for the model tier, 1 research paper if applicable
+- [ ] Sources you couldn't find primary on are explicitly listed (not hidden)
+- [ ] Student has said "proceed" or equivalent
+- [ ] The source list is saved — you'll need it in Phase 7 for spec section 13
+
+## Project-type notes
+
+Adjust the research focus by type:
+
+- **RAG-heavy**: focus on retrieval methods (hybrid, dense, sparse, reranking), embedding model benchmarks (MTEB), chunking strategies, and the specific document domain (legal, medical, code, etc.). Cost research should include embedding generation cost, not just LLM cost.
+
+- **Agentic**: focus on agent benchmarks (τ-bench, BFCL, SWE-bench, AgentBench), framework comparisons (LangGraph vs OpenAI Agents SDK vs raw), tool-calling reliability data, and any relevant MCP servers.
+
+- **Fine-tuning**: focus on the base model's evals, similar fine-tunes that already exist on Hugging Face, training cost references, LoRA/QLoRA papers, and dataset availability.
+
+- **Multimodal**: focus on the relevant modality benchmarks (MMMU for vision-language, SEED-Bench for video, etc.), available open multimodal models (Qwen-VL, Llava, etc.), and the specific failure modes of multimodal systems in this domain.
+
+- **Inference/systems**: focus on inference engine benchmarks (vLLM, TGI, MLX), quantization papers, KV cache / FlashAttention work, and serving cost references.

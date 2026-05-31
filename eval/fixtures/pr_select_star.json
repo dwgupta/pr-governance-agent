@@ -1,0 +1,24 @@
+{
+  "pr_url": "https://github.com/demo/migration-sandbox/pull/4",
+  "repo": "demo/migration-sandbox",
+  "pr_number": 4,
+  "pr_metadata": {
+    "title": "Broad extract for reconciliation",
+    "body": "One-time backfill",
+    "state": "open",
+    "user": "data-engineer",
+    "base": "main",
+    "head": "feature/backfill"
+  },
+  "changed_files": ["sql/reconciliation.sql"],
+  "patches": [
+    {
+      "filename": "sql/reconciliation.sql",
+      "status": "added",
+      "patch": "+++ b/sql/reconciliation.sql\n+SELECT * FROM raw_payments",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "ci_status": null
+}

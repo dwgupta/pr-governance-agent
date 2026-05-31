@@ -1,0 +1,27 @@
+{
+  "pr_url": "https://github.com/demo/migration-sandbox/pull/1",
+  "repo": "demo/migration-sandbox",
+  "pr_number": 1,
+  "pr_metadata": {
+    "title": "Add fact_payments mart with date partitioning",
+    "body": "Migrates payments fact from Oracle staging. Includes partition on event_date.",
+    "state": "open",
+    "user": "data-engineer",
+    "base": "main",
+    "head": "feature/payments-mart"
+  },
+  "changed_files": [
+    "models/marts/fact_payments.sql",
+    "models/marts/schema.yml"
+  ],
+  "patches": [
+    {
+      "filename": "models/marts/fact_payments.sql",
+      "status": "added",
+      "patch": "+++ b/models/marts/fact_payments.sql\n+SELECT payment_id, event_date, amount_usd\n+FROM {{ ref('stg_payments') }}\n+WHERE event_date >= DATE('2024-01-01')",
+      "additions": 4,
+      "deletions": 0
+    }
+  ],
+  "ci_status": null
+}

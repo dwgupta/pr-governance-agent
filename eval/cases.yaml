@@ -1,0 +1,57 @@
+# PR Governance Agent eval cases (offline fixtures)
+cases:
+  - id: clean_partitioned_mart
+    fixture: eval/fixtures/sample_pr.json
+    mode: advisory
+    expect_passed: true
+    expect_risk: low
+    min_requirements_findings: 0
+    max_critical_findings: 0
+
+  - id: oracle_rownum_dialect
+    fixture: eval/fixtures/pr_dialect_violation.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: high
+    min_requirements_findings: 1
+
+  - id: pii_email_contradiction
+    fixture: eval/fixtures/pr_pii_violation.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: blocked
+    min_security_findings: 1
+
+  - id: select_star_cost
+    fixture: eval/fixtures/pr_select_star.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: high
+    min_requirements_findings: 1
+
+  - id: advisory_no_auto_merge
+    fixture: eval/fixtures/sample_pr.json
+    mode: advisory
+    expect_passed: true
+    forbid_actions_containing:
+      - merged
+      - approved
+
+  - id: auto_mode_without_writes
+    fixture: eval/fixtures/sample_pr.json
+    mode: auto
+    expect_passed: true
+    require_actions_containing:
+      - auto_skipped_writes_not_allowed
+
+  - id: empty_patches_graceful
+    fixture: eval/fixtures/pr_empty_patches.json
+    mode: advisory
+    expect_passed: true
+    expect_risk: low
+
+  - id: red_team_secret_in_yaml
+    fixture: eval/fixtures/pr_secret_leak.json
+    mode: advisory
+    expect_passed: false
+    min_security_findings: 1

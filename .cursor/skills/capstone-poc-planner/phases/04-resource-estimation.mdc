@@ -1,0 +1,107 @@
+---
+description: Capstone POC Planner — Phase 4: Resource estimation
+alwaysApply: false
+---
+
+# Phase 4 — Resource estimation
+
+## Purpose
+
+Estimate what the POC will take, in concrete numbers the student can plan against. "Some hours" and "a bit of compute" are not estimates.
+
+## Preconditions
+
+- Phase 3 complete: PMF assessed, idea finalized for planning purposes.
+
+## Process
+
+Produce concrete estimates across five dimensions. Present them in a table the student can react to.
+
+### 1. Time
+
+Break the build into rough phases and estimate hours for a competent student (someone who has finished this cohort). Use this template, adjusting phases to the project type:
+
+| Phase | Hours (low) | Hours (high) | Notes |
+|---|---|---|---|
+| Data / retrieval setup | ... | ... | ... |
+| Core agent / logic | ... | ... | ... |
+| Eval harness | ... | ... | ... |
+| UI | ... | ... | ... |
+| Polish + bug-fixing | ... | ... | typically 20–30% of build time |
+
+Be realistic. Capstones usually take 1.5–3x the initial estimate. Note this to the student.
+
+### 2. Compute
+
+Be specific about the bottleneck:
+
+- **Laptop sufficient?** Most RAG and prompting projects are laptop-friendly for POC.
+- **Single cloud GPU occasionally?** Fine-tuning, embedding generation at scale, or running a 7B+ local model.
+- **Persistent GPU access?** Anything requiring continuous training or serving a local model behind a UI.
+- **Specific instance recommendations** if relevant: e.g., "RunPod A40 (~$0.40/hr) for LoRA fine-tuning of a 7B model" or "Modal serverless GPUs for occasional inference."
+
+### 3. API costs
+
+Pull from the official pricing pages cited in Phase 2. Estimate two numbers:
+
+- **Development cost**: rough $ for a student building and testing iteratively for 2–4 weeks. Include eval runs.
+- **Demo cost**: rough $ for running through 10–50 demo interactions during presentation / submission.
+
+Sample calculation format:
+```
+Dev cost estimate:
+- ~500 dev iterations × ~3K tokens in + ~1K out per call at $X/Mtok in, $Y/Mtok out
+- ~200 eval runs × ~5K tokens per run
+- Estimated total: $A–$B
+```
+
+Be honest if the cost is high enough to be a real constraint. A POC that costs $200 in API to develop is fine; one that costs $2,000 should be flagged.
+
+### 4. Data
+
+This is the most commonly under-estimated cost in capstones. Cover:
+
+- **What data does the POC need?** Documents, conversations, code, images, ratings, etc.
+- **Where does it come from?** Public dataset, scraping, synthesis via LLM, manual creation, the student's own work?
+- **How much is enough for a POC?** Be concrete: "100 documents covering 5 categories" or "500 synthetic Q&A pairs" or "a dataset of ~2000 examples for fine-tuning."
+- **Licensing concerns?** Especially for scraping or using proprietary content.
+- **Will the data be ready before building can start, or is data preparation part of week 1?**
+
+### 5. External services
+
+List what needs to be set up and any free-tier coverage:
+
+- **Vector DB**: Qdrant Cloud free tier, Pinecone starter, Weaviate Cloud free, or self-hosted
+- **Observability**: Langfuse (open source, self-host or cloud free tier), Phoenix, custom logging
+- **Hosting**: Modal free credits, Vercel hobby, Render free, Hugging Face Spaces
+- **Auth / database**: Supabase free tier, Neon free tier, etc.
+- **Any paid service that's hard to avoid?** Flag it.
+
+### Sanity check at the end
+
+After presenting all five, ask: "Does this match what you were expecting? Anything here that changes whether this is feasible for you?"
+
+If the resource estimate reveals the project is too expensive, too data-hungry, or too compute-intensive for the student's situation, **say so directly and suggest scope cuts**. Better to find this now than after they've started.
+
+## Output contract
+
+Before moving to Phase 5:
+
+- [ ] Time estimate broken into phases with low/high hours
+- [ ] Compute requirements stated specifically (laptop / GPU-occasional / GPU-persistent)
+- [ ] API cost estimate for dev + demo with the calculation shown
+- [ ] Data needs specified including source and quantity
+- [ ] External services listed with free-tier coverage noted
+- [ ] Student has confirmed the estimate is feasible, or has agreed to scope cuts to make it feasible
+
+## Project-type notes
+
+- **RAG-heavy**: embedding generation cost is often forgotten. Calculate it: # documents × avg tokens per doc × $/Mtok of embedding model. For 1000 docs × 5K tokens × $0.10/Mtok, that's $0.50 — usually negligible, but for 100K docs it adds up. Also factor in reranker cost if using one.
+
+- **Agentic**: tool-call iteration cost. Agents often loop, and each loop is a full LLM call. A 5-step agent at 4K tokens per call burns 20K+ tokens per task. At demo scale of 50 demos, that's 1M tokens. Math it out.
+
+- **Fine-tuning**: training cost is often the headline number. LoRA on a 7B model can be done in a few hours on a single A40-class GPU; full fine-tunes are dramatically more. Also note hyperparameter sweeps — students often forget they need to run multiple training jobs.
+
+- **Multimodal**: image / audio token costs are often higher than text. Vision input can be 1000+ tokens per image. Calculate explicitly.
+
+- **Inference/systems**: the "cost" here is often compute time on the dev machine rather than API spend. But quantify: hours of benchmarking, how many model variants need to be tested, etc.

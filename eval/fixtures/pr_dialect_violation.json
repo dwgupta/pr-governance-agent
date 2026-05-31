@@ -1,0 +1,24 @@
+{
+  "pr_url": "https://github.com/demo/migration-sandbox/pull/2",
+  "repo": "demo/migration-sandbox",
+  "pr_number": 2,
+  "pr_metadata": {
+    "title": "Quick fix for payments extract",
+    "body": "Temporary Oracle compatibility",
+    "state": "open",
+    "user": "data-engineer",
+    "base": "main",
+    "head": "feature/oracle-rownum"
+  },
+  "changed_files": ["sql/legacy_extract.sql"],
+  "patches": [
+    {
+      "filename": "sql/legacy_extract.sql",
+      "status": "modified",
+      "patch": "+++ b/sql/legacy_extract.sql\n+SELECT * FROM payments WHERE ROWNUM <= 1000",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "ci_status": null
+}

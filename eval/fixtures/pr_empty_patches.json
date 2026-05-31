@@ -1,0 +1,16 @@
+{
+  "pr_url": "https://github.com/demo/migration-sandbox/pull/5",
+  "repo": "demo/migration-sandbox",
+  "pr_number": 5,
+  "pr_metadata": {
+    "title": "Docs only",
+    "body": "README update",
+    "state": "open",
+    "user": "data-engineer",
+    "base": "main",
+    "head": "feature/docs"
+  },
+  "changed_files": [],
+  "patches": [],
+  "ci_status": null
+}

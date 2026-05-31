@@ -1,0 +1,92 @@
+---
+description: Capstone POC Planner — Phase 6: Eval plan
+alwaysApply: false
+---
+
+# Phase 6 — Eval plan
+
+## Purpose
+
+Define how the student will know the POC works — the single thing that separates a demo from a real POC. Students finished a full week of eval content in this cohort; hold them to it.
+
+## Preconditions
+
+- Phase 5 complete: stack chosen.
+
+## Process
+
+Define four things together with the student. Don't just write these for them — work through them in conversation. If the student can't articulate them, that's a signal the project isn't well-defined yet.
+
+### 1. Concrete eval cases (5–10)
+
+Each eval case is a specific **input → expected behavior** pair, held to the Phase 0 concreteness standard. Not "the agent should respond accurately" but: "Input: 'What's the return policy for items bought on sale?' Expected: cites the sale-returns clause, returns within 3s, includes the 14-day window, does not hallucinate a separate sale-return policy."
+
+For each case, specify:
+- The exact input
+- The expected behavior (specific enough to verify)
+- The failure mode this case is designed to catch
+
+Cover a range:
+- 2–3 happy path cases (the common, easy-to-handle inputs)
+- 2–3 edge cases (unusual inputs that should still work)
+- 1–2 cases that test specific known failure modes (hallucination triggers, multi-hop reasoning, sensitive content)
+- 1 "this should be refused / handled with a graceful failure" case
+
+### 2. Metrics
+
+Pick the metrics that match the project shape. For each, specify what it measures and the target threshold for "POC passes."
+
+Common metrics by project type:
+
+| Metric | What it measures | Target threshold example |
+|---|---|---|
+| Groundedness | Does the answer follow from the retrieved context? | ≥ 90% on eval set |
+| Answer relevancy | Does the answer address the question asked? | ≥ 85% |
+| Tool-call correctness | Did the agent call the right tool with the right args? | ≥ 80% on multi-step cases |
+| Latency p95 | 95th percentile response time | < X seconds (specify) |
+| Cost per interaction | Avg $ per full task | < $X (specify) |
+| Faithfulness | Does generated output stay true to source? (for summarization) | ≥ 90% |
+
+Don't pick metrics that don't apply. A fine-tuning project's primary metric might be task accuracy on a held-out set, not groundedness.
+
+### 3. LLM-as-a-judge plan (if subjective quality matters)
+
+If any of the metrics requires subjective judgment (e.g., "is this answer helpful," "is the tone appropriate"), define the judge:
+
+- **Judge model**: which model is grading
+- **Judge prompt summary**: what is the judge being asked to evaluate
+- **Rubric**: the criteria the judge uses (specific, not "is it good?")
+- **Calibration plan**: how does the student know the judge is reliable? Typically a small (10–20) human-labeled set to spot-check the judge's agreement with human judgment.
+
+### 4. Red-team case (mandatory)
+
+Define **one specific input** the student expects to break the system, and **what graceful failure should look like**.
+
+Examples:
+- "Input: a question about a topic not covered in the document corpus. Graceful failure: agent says 'I don't have information on that' rather than hallucinating an answer."
+- "Input: a prompt injection in a retrieved document attempting to override the system prompt. Graceful failure: agent ignores the injection and follows the user's actual request."
+- "Input: an ambiguous question with multiple valid answers. Graceful failure: agent asks a clarifying question instead of picking one arbitrarily."
+
+The student should commit to this case being part of their eval set, not just a thought experiment.
+
+## Output contract
+
+Before moving to Phase 7:
+
+- [ ] 5–10 eval cases with input, expected behavior, and target failure mode each
+- [ ] At least 2 metrics chosen with specific target thresholds
+- [ ] If subjective metrics are used, LLM-as-judge plan defined including calibration
+- [ ] One red-team case with graceful failure spec
+- [ ] Student has confirmed they will actually build the eval harness in week 1, not as an afterthought
+
+## Project-type notes
+
+- **RAG-heavy**: groundedness and answer relevancy are usually the headline metrics. Also include a "retrieval recall" metric — did the right chunk make it into the context? Without that, you can't tell whether failures are retrieval or generation. Use RAGAS or a similar framework if the student wants pre-built scaffolding, but a hand-rolled eval is often clearer.
+
+- **Agentic**: tool-call correctness is the headline metric. Also evaluate trajectory quality (did the agent take a reasonable path?) and turn count (how many steps did it take vs minimum needed?). τ-bench-style task completion rates are good targets.
+
+- **Fine-tuning**: hold-out set accuracy on the target task is the headline. Also include comparison to the base model — if the fine-tune doesn't beat the prompted base model by a meaningful margin, the fine-tune isn't earning its keep. This is the single most common fine-tuning capstone failure mode.
+
+- **Multimodal**: visual grounding is the equivalent of textual groundedness — does the answer correctly describe what's in the image / audio / video? Hallucination rates on visual content are often much higher than text — set explicit thresholds.
+
+- **Inference/systems**: throughput, latency p95, memory footprint, and cost per token are the primary metrics. Compare against a baseline (e.g., "vLLM with default settings vs our optimized config"). Without a baseline, the numbers are meaningless.

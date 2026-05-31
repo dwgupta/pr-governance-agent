@@ -1,0 +1,85 @@
+---
+description: Capstone POC Planner — Phase 3: Product-market fit analysis
+alwaysApply: false
+---
+
+# Phase 3 — Product-market fit analysis
+
+## Purpose
+
+Write a short, honest PMF assessment grounded in the Phase 2 sources. The goal is an accurate read so the student can decide whether to continue, pivot, or refine — not to convince them the idea is great.
+
+## Preconditions
+
+- Phase 2 complete: source list approved by the student.
+
+## Process
+
+Write a PMF assessment of roughly 200–400 words in chat. Don't put this in the final spec yet — that happens in Phase 7. The chat version is for discussion. Cover these four areas:
+
+### 1. Who specifically would use this
+
+A real user segment with a name and a context, held to the same concreteness standard as the idea description in Phase 0. "Backend engineers at 50–500 person companies told to add an AI feature and unsure where to start" — not "developers building AI applications."
+
+### 2. What evidence exists that this segment has the problem
+
+Cite from the sources approved in Phase 2. Acceptable evidence:
+
+- Competitor products exist and are growing → there's demand
+- Specific Reddit / HN / forum threads from real users describing the pain (if any were found in your research)
+- Product reviews of competitor solutions that reveal what's missing
+- Research papers describing the problem
+- Existing open-source projects with stars/forks indicating community pull
+
+If the evidence is thin, **say so**. "I couldn't find strong external signal that this is a top-3 pain for this segment. The case rests mostly on [thing]. Worth validating with 3–5 user conversations before building."
+
+### 3. The realistic competitive picture
+
+Pick one:
+
+- **Crowded space** (e.g., generic RAG chatbots, customer support agents): "There are many existing solutions. The student's wedge needs to be sharp — narrow vertical, dramatically better UX, or genuinely novel approach. Going general here is risky."
+
+- **Moderately served space** (e.g., vertical-specific agents, niche fine-tunes): "A handful of solutions exist but the space isn't saturated. There's room if the student picks a clear differentiator and executes well."
+
+- **Underbuilt space**: "Few or no direct competitors. This is either a real opportunity or a sign the problem isn't valuable enough to attract builders — investigate which."
+
+### 4. Capability-trajectory honesty
+
+Reframe "is this future-proof?" as three sub-questions:
+
+- **What model-capability assumptions does this make?** (e.g., "assumes 200K context is enough", "assumes tool-call reliability is high enough for 5-step chains", "assumes a 7B fine-tune can outperform GPT-4 on this narrow task")
+
+- **Which of these assumptions are likely to change in the next 12 months?** (Context windows growing, tool reliability improving, inference costs dropping, multimodal models getting cheaper.)
+
+- **Does the project survive or improve when they change?** Projects that *improve* when models get better are well-positioned. Projects whose value depends on working around a *current limitation* are fragile — when the limitation goes away, the project loses its reason to exist.
+
+Example for a "summarize 50-page PDFs because context windows are limited" project: this gets weaker as context windows grow. The student should reposition around something that's not just "we paginate well."
+
+Example for a "domain-specific eval harness for legal AI" project: this gets stronger as more legal AI products launch and need evaluation. Good positioning.
+
+### After presenting the assessment
+
+Ask the student: "Based on this, do you want to keep the idea as-is, adjust framing, or pivot? I'd specifically suggest [your concrete recommendation if you have one] — but it's your call."
+
+If the student wants to adjust, work with them to update the idea description. Then proceed to Phase 4 with the updated version.
+
+## Output contract
+
+Before moving to Phase 4:
+
+- [ ] All four PMF areas addressed in writing (user segment, evidence, competitive picture, capability trajectory)
+- [ ] Honesty markers used where appropriate ("evidence is thin", "this gets weaker as X", etc.) — don't sugarcoat
+- [ ] Student has decided: keep as-is / adjust framing / pivot
+- [ ] If pivoted, the working idea description is updated and the student has confirmed the new version
+
+## Project-type notes
+
+- **RAG-heavy**: the user segment is usually defined by what documents they work with. Get specific about the document type — legal contracts, scientific papers, internal company docs, customer support tickets — because the retrieval challenges differ dramatically across these.
+
+- **Agentic**: the PMF question is often "is the workflow this agent automates actually painful enough to justify the unreliability cost?" Agents fail more than scripts do. The user has to want the flexibility enough to tolerate the failure rate.
+
+- **Fine-tuning**: the PMF question is "why does this need a fine-tune instead of better prompting + RAG + a frontier model?" If you can't answer convincingly, the project may be in the "looks impressive, isn't actually better" trap. Cost, latency, privacy, or domain-specific behavior unreachable by prompting are the four legitimate answers.
+
+- **Multimodal**: the PMF question is often whether the multimodal step actually unlocks something or is just adding a feature. "We accept images" is not multimodal product-market fit; "the image is the input that makes the rest possible" is.
+
+- **Inference/systems**: PMF is unusual here — the "user" is often a developer or another system. The question becomes "what does this enable that wasn't possible before?" — usually a specific cost or latency threshold being crossed.
