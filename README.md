@@ -7,6 +7,12 @@ Agentic GitHub PR review for **data engineering migration** workflows (on-prem â
 - [Problem definition, data processing & evaluation](docs/pr-governance-problem-data-and-evaluation.md)
 - [Technical design](docs/pr-governance-agent-technical-design.md)
 - [Architecture diagrams](docs/pr-governance-agent-architecture.md)
+- [Usage guide (heuristic + LLM + live GitHub)](docs/pr-governance-agent-usage-guide.md)
+
+### Sample PR fixtures for docs/demo
+
+- [Success sample fixture](docs/samples/success_pr_fixture.json)
+- [Failed sample fixture (`SELECT *` violation)](docs/samples/failed_select_star_pr_fixture.json)
 
 ## Prerequisites
 

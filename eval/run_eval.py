@@ -46,7 +46,7 @@ def run_case(case: dict) -> tuple[bool, str]:
 
     os.environ["PR_FIXTURE_PATH"] = str(fixture)
     data = json.loads(fixture.read_text(encoding="utf-8"))
-    pr_url = data.get("pr_url", "https://github.com/demo/migration-sandbox/pull/1")
+    pr_url = data.get("pr_url", "https://github.com/dwgupta/migration-sandbox-capstone/pull/1")
 
     app = compile_graph()
     state = initial_state(pr_url=pr_url, mode=case.get("mode", "advisory"))

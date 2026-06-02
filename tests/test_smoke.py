@@ -37,7 +37,7 @@ def test_graph_invoke_clean_pr(app):
     from pr_governance_agent.state import initial_state
 
     state = initial_state(
-        pr_url="https://github.com/demo/migration-sandbox/pull/1",
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
         mode="advisory",
     )
     result = app.invoke(state, config={"configurable": {"thread_id": "test-clean"}})
@@ -56,7 +56,7 @@ def test_graph_detects_dialect_violation(app):
         ROOT / "eval" / "fixtures" / "pr_dialect_violation.json"
     )
     state = initial_state(
-        pr_url="https://github.com/demo/migration-sandbox/pull/2",
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/2",
         mode="advisory",
     )
     result = app.invoke(state, config={"configurable": {"thread_id": "test-dialect"}})
@@ -94,7 +94,7 @@ def test_empty_chroma_index_warns(app, tmp_path, monkeypatch):
     get_settings.cache_clear()
 
     state = initial_state(
-        pr_url="https://github.com/demo/migration-sandbox/pull/1",
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
         mode="advisory",
     )
     result = app.invoke(state, config={"configurable": {"thread_id": "test-empty-chroma"}})
@@ -103,3 +103,25 @@ def test_empty_chroma_index_warns(app, tmp_path, monkeypatch):
     assert warnings
     assert any("ingest_docs.py" in w for w in warnings)
     assert "ingest_docs.py" in (result.get("review_markdown") or "")
+
+
+def test_route_decision_fail_closed_on_ingest_error():
+    from pr_governance_agent.graph import nodes
+    from pr_governance_agent.state import initial_state
+
+    state = initial_state(
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/99999",
+        mode="advisory",
+    )
+    state["errors"] = [
+        "ingest_pr: Client error '404 Not Found' for url 'https://api.github.com/repos/dwgupta/migration-sandbox-capstone/pulls/99999'"
+    ]
+    state["requirements_findings"] = []
+    state["security_findings"] = []
+
+    result = nodes.route_decision(state)
+    assert result.get("passed") is False
+    assert result.get("overall_risk") == "blocked"
+    assert "PR ingest failed; cannot evaluate governance safely" in (
+        result.get("blockers") or []
+    )

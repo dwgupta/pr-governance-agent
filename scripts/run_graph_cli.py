@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run PR governance agent graph")
     parser.add_argument(
         "--pr-url",
-        default="https://github.com/demo/migration-sandbox/pull/1",
+        default="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
         help="GitHub PR URL (or use USE_PR_FIXTURE=true)",
     )
     parser.add_argument(

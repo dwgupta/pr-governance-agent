@@ -1,16 +1,18 @@
 {
-  "pr_url": "https://github.com/dwgupta/migration-sandbox-capstone/pull/4",
+  "pr_url": "https://github.com/dwgupta/migration-sandbox-capstone/pull/102",
   "repo": "dwgupta/migration-sandbox-capstone",
-  "pr_number": 4,
+  "pr_number": 102,
   "pr_metadata": {
-    "title": "Broad extract for reconciliation",
-    "body": "One-time backfill",
+    "title": "Add reconciliation extract using wildcard select",
+    "body": "Backfill query for migration validation.",
     "state": "open",
-    "user": "data-engineer",
+    "user": "etl-dev",
     "base": "main",
-    "head": "feature/backfill"
+    "head": "feature/reconciliation-select-star"
   },
-  "changed_files": ["sql/reconciliation.sql"],
+  "changed_files": [
+    "sql/reconciliation.sql"
+  ],
   "patches": [
     {
       "filename": "sql/reconciliation.sql",

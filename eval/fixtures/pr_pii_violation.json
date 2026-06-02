@@ -1,6 +1,6 @@
 {
-  "pr_url": "https://github.com/demo/migration-sandbox/pull/3",
-  "repo": "demo/migration-sandbox",
+  "pr_url": "https://github.com/dwgupta/migration-sandbox-capstone/pull/3",
+  "repo": "dwgupta/migration-sandbox-capstone",
   "pr_number": 3,
   "pr_metadata": {
     "title": "Add customer email to mart",

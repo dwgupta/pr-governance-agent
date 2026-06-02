@@ -23,7 +23,7 @@ from pr_governance_agent.mcp.github_client import GitHubClient
 def main() -> int:
     raw = sys.stdin.read()
     payload = json.loads(raw) if raw.strip() else {}
-    repo = payload.get("repo", "demo/migration-sandbox")
+    repo = payload.get("repo", "dwgupta/migration-sandbox-capstone")
     pr_number = int(payload.get("pr_number", 1))
     pr_url = f"https://github.com/{repo}/pull/{pr_number}"
     data = GitHubClient().fetch_pr(pr_url)

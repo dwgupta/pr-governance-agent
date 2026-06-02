@@ -68,7 +68,7 @@ with st.sidebar:
 
 pr_url = st.text_input(
     "GitHub PR URL",
-    value="https://github.com/demo/migration-sandbox/pull/1",
+    value="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
     help="Used with GITHUB_TOKEN, or ignored when USE_PR_FIXTURE=true",
 )
 

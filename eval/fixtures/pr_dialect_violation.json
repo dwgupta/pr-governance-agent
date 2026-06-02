@@ -1,6 +1,6 @@
 {
-  "pr_url": "https://github.com/demo/migration-sandbox/pull/2",
-  "repo": "demo/migration-sandbox",
+  "pr_url": "https://github.com/dwgupta/migration-sandbox-capstone/pull/2",
+  "repo": "dwgupta/migration-sandbox-capstone",
   "pr_number": 2,
   "pr_metadata": {
     "title": "Quick fix for payments extract",

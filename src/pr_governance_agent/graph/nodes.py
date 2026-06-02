@@ -32,7 +32,7 @@ def ingest_pr(state: PRReviewState) -> PRReviewState:
                 data = client.fetch_pr(pr_url)
             else:
                 # Demo default when no URL provided
-                data = client.fetch_pr("https://github.com/demo/migration-sandbox/pull/1")
+                data = client.fetch_pr("https://github.com/dwgupta/migration-sandbox-capstone/pull/1")
 
             state["pr_metadata"] = data.get("pr_metadata", {})
             state["changed_files"] = data.get("changed_files", [])
@@ -184,15 +184,21 @@ def route_decision(state: PRReviewState) -> PRReviewState:
         req = state.get("requirements_findings") or []
         sec = state.get("security_findings") or []
         blockers: list[str] = []
+        errors = state.get("errors") or []
 
         severities = [f["severity"] for f in req + sec]
         if any(s in ("high", "critical") for s in severities):
             blockers.append("High or critical findings present")
+        # Fail closed when PR ingest fails (e.g., repo/PR not found or auth issues).
+        if any(str(err).startswith("ingest_pr:") for err in errors):
+            blockers.append("PR ingest failed; cannot evaluate governance safely")
 
         state["blockers"] = blockers
         state["passed"] = len(blockers) == 0
 
-        if any(s == "critical" for s in severities):
+        if any(str(err).startswith("ingest_pr:") for err in errors):
+            state["overall_risk"] = "blocked"
+        elif any(s == "critical" for s in severities):
             state["overall_risk"] = "blocked"
         elif any(s == "high" for s in severities):
             state["overall_risk"] = "high"
