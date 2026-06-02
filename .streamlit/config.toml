@@ -1,0 +1,7 @@
+# Streamlit server config for PR Governance Agent.
+#
+# The reranker uses sentence-transformers → transformers. Streamlit's default
+# file watcher introspects every transformers vision submodule and logs errors
+# when torchvision is not installed (not required for this app).
+[server]
+fileWatcherType = "none"

@@ -8,6 +8,7 @@ Agentic GitHub PR review for **data engineering migration** workflows (on-prem â
 - [Technical design](docs/pr-governance-agent-technical-design.md)
 - [Architecture diagrams](docs/pr-governance-agent-architecture.md)
 - [Usage guide (heuristic + LLM + live GitHub)](docs/pr-governance-agent-usage-guide.md)
+- [Streamlit UI usage guide](docs/streamlit-ui-usage-guide.md)
 
 ### Sample PR fixtures for docs/demo
 
@@ -140,6 +141,8 @@ streamlit run app/streamlit_app.py
 ```
 
 Set `USE_PR_FIXTURE=true` in `.env` for offline demo without GitHub API calls.
+
+Step-by-step UI walkthrough: [Streamlit UI usage guide](docs/streamlit-ui-usage-guide.md).
 
 ## Modes
 

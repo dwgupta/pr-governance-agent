@@ -10,7 +10,6 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 
 from pr_governance_agent.config import get_settings
-from pr_governance_agent.rag.reranker import rerank as rerank_chunks
 from pr_governance_agent.state import RetrievalChunk
 
 # Collection names must match ingest routing in ingest_markdown.py
@@ -105,6 +104,8 @@ class ChromaStore:
             return []
 
         if use_rerank:
+            from pr_governance_agent.rag.reranker import rerank as rerank_chunks
+
             return rerank_chunks(query_text, candidates, top_k=final_k)
 
         return candidates[: max(1, final_k)]
