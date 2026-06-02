@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pr_governance_agent.config import get_settings
 
-get_settings()  # LangSmith env before LangChain imports
+# Apply LangSmith tracing env before any LangChain import
+get_settings()
 
 from pr_governance_agent.graph.builder import compile_graph
 from pr_governance_agent.state import initial_state

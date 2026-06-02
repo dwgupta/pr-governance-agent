@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run offline eval cases against the PR governance graph."""
+"""Run offline eval cases against the PR governance graph.
+
+Heuristic mode (default): deterministic regex checks, no API key — used in CI.
+LLM mode (--llm): requires OPENAI_API_KEY; uses eval/cases_llm.yaml.
+"""
 
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ def _has_llm_fallback(warnings: list[str]) -> bool:
 
 
 def run_case(case: dict) -> tuple[bool, str]:
+    """Execute one YAML case against a fixture; return (passed, message)."""
     fixture = ROOT / case["fixture"]
     if not fixture.exists():
         return False, f"Missing fixture: {fixture}"

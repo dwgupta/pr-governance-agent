@@ -1,3 +1,9 @@
+"""LangGraph workflow definition and compilation.
+
+The graph is linear: ingest → RAG (×2) → optional SAST → evaluate (×2) →
+synthesize → route → GitHub actions → notify. Checkpointing enables replay/debug.
+"""
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
@@ -7,6 +13,7 @@ from pr_governance_agent.state import PRReviewState
 
 
 def build_graph() -> StateGraph:
+    """Wire all nodes and edges; returns an uncompiled StateGraph."""
     graph = StateGraph(PRReviewState)
 
     graph.add_node("ingest_pr", nodes.ingest_pr)
@@ -38,6 +45,7 @@ def build_graph() -> StateGraph:
 
 
 def _get_checkpointer():
+    """Prefer SQLite checkpoints on disk; fall back to in-memory if import fails."""
     settings = get_settings()
     if settings.use_sqlite_checkpoint:
         try:
@@ -55,5 +63,6 @@ def _get_checkpointer():
 
 
 def compile_graph():
+    """Build and compile the graph with a checkpointer for ``thread_id`` replay."""
     graph = build_graph()
     return graph.compile(checkpointer=_get_checkpointer())

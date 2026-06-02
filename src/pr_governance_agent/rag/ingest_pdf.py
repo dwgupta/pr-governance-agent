@@ -1,3 +1,9 @@
+"""Optional PDF ingestion using the same chunking pipeline as markdown.
+
+Extracts text with pypdf, splits on headings or ALL-CAPS lines, then reuses
+``_chunk_section`` from ingest_markdown for consistent metadata.
+"""
+
 import re
 from pathlib import Path
 
@@ -6,6 +12,7 @@ from pypdf import PdfReader
 from pr_governance_agent.rag.chroma_store import ChromaStore
 from pr_governance_agent.rag.ingest_markdown import _chunk_section, _extract_h1
 
+# Markdown-style headings or ALL-CAPS section titles from exported PDFs
 _HEADING_PATTERN = re.compile(
     r"^(?:#{1,3}\s+.+|[A-Z][A-Z0-9\s\-]{3,})$",
     re.MULTILINE,
@@ -36,6 +43,7 @@ def ingest_pdf_file(
     collection_name: str,
     store: ChromaStore | None = None,
 ) -> int:
+    """Extract PDF text, chunk by section, upsert into Chroma."""
     store = store or ChromaStore()
     collection = store.get_or_create_collection(collection_name)
     reader = PdfReader(str(path))

@@ -1,3 +1,9 @@
+"""Optional Semgrep static analysis on PR patch content.
+
+Writes each patch to a temp directory and runs ``semgrep --config p/python``.
+Returns empty list when semgrep is not installed or ENABLE_SAST is off.
+"""
+
 import json
 import shutil
 import subprocess
@@ -9,6 +15,7 @@ from pr_governance_agent.state import Finding
 
 
 def run_semgrep_on_patches(patches: list[dict[str, Any]]) -> list[Finding]:
+    """Run Semgrep on unified diff text; map results to Finding objects."""
     if not patches or not shutil.which("semgrep"):
         return []
 
@@ -39,6 +46,7 @@ def run_semgrep_on_patches(patches: list[dict[str, Any]]) -> list[Finding]:
         except (subprocess.TimeoutExpired, OSError):
             return []
 
+        # Semgrep exit 1 means findings present
         if proc.returncode not in (0, 1) or not proc.stdout.strip():
             return []
 

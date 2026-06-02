@@ -1,3 +1,9 @@
+"""ChromaDB vector store for migration requirements and security policies.
+
+Uses persistent HNSW (cosine) indexes. Online retrieval is two-stage:
+wide vector recall → cross-encoder rerank → top-k chunks for the LLM.
+"""
+
 from pathlib import Path
 
 import chromadb
@@ -7,15 +13,19 @@ from pr_governance_agent.config import get_settings
 from pr_governance_agent.rag.reranker import rerank as rerank_chunks
 from pr_governance_agent.state import RetrievalChunk
 
+# Collection names must match ingest routing in ingest_markdown.py
 REQUIREMENTS_COLLECTION = "requirements"
 SECURITY_COLLECTION = "security_policies"
 
+# HNSW index tuning for small policy corpora (tens–hundreds of chunks)
 HNSW_SPACE = "cosine"
 HNSW_CONSTRUCTION_EF = 100
 HNSW_SEARCH_EF = 50
 
 
 class ChromaStore:
+    """Thin wrapper around Chroma PersistentClient with retrieve + health checks."""
+
     def __init__(self, persist_dir: Path | None = None) -> None:
         settings = get_settings()
         path = persist_dir or settings.chroma_persist_dir
@@ -26,6 +36,7 @@ class ChromaStore:
         )
 
     def get_or_create_collection(self, name: str):
+        """Get or create a collection with HNSW cosine metadata."""
         return self._client.get_or_create_collection(
             name=name,
             metadata={
@@ -41,6 +52,7 @@ class ChromaStore:
         query_text: str,
         n_results: int = 5,
     ) -> list[RetrievalChunk]:
+        """Vector similarity search only (no reranking)."""
         collection = self.get_or_create_collection(collection_name)
         if collection.count() == 0:
             return []
@@ -59,6 +71,7 @@ class ChromaStore:
         for i, doc_id in enumerate(ids):
             meta = metas[i] if i < len(metas) else {}
             dist = dists[i] if i < len(dists) else 1.0
+            # Chroma returns distance; convert to a 0–1 similarity-style score
             score = max(0.0, 1.0 - dist)
             chunk: RetrievalChunk = {
                 "id": doc_id,
@@ -81,6 +94,7 @@ class ChromaStore:
         top_k: int | None = None,
         enable_rerank: bool | None = None,
     ) -> list[RetrievalChunk]:
+        """Two-stage retrieval: HNSW recall then optional cross-encoder rerank."""
         settings = get_settings()
         wide_n = retrieve_n if retrieve_n is not None else settings.rag_retrieve_n
         final_k = top_k if top_k is not None else settings.rag_top_k

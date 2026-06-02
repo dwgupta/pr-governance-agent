@@ -20,6 +20,7 @@ PR_URL_PATTERN = re.compile(
 
 
 def parse_pr_url(pr_url: str) -> tuple[str, str, int]:
+    """Parse GitHub PR URL into (owner/repo, repo_name, pr_number)."""
     match = PR_URL_PATTERN.search(pr_url)
     if not match:
         raise ValueError(f"Invalid GitHub PR URL: {pr_url}")
@@ -34,6 +35,8 @@ def _fixture_path() -> Path:
 
 
 class GitHubClient:
+    """Fetch and mutate PRs via REST, fixtures, or an optional MCP shell command."""
+
     def __init__(self, token: str | None = None) -> None:
         settings = get_settings()
         self._token = token or settings.github_token
@@ -43,6 +46,7 @@ class GitHubClient:
         self._max_lines = settings.max_diff_lines
 
     def fetch_pr(self, pr_url: str) -> dict[str, Any]:
+        """Return PR payload: metadata, changed_files, patches (fixture → MCP → REST)."""
         if self._use_fixture or not self._token:
             return self._load_fixture(pr_url)
 
@@ -100,6 +104,7 @@ class GitHubClient:
             filename = f.get("filename", "")
             patch = f.get("patch") or ""
             patch_lines = patch.splitlines()
+            # Truncate total diff lines to stay within LLM/context limits
             if line_count + len(patch_lines) > self._max_lines:
                 remaining = max(self._max_lines - line_count, 0)
                 patch = "\n".join(patch_lines[:remaining]) + "\n... [truncated]"

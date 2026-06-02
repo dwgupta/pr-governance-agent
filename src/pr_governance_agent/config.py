@@ -1,3 +1,10 @@
+"""Application configuration loaded from environment and `.env`.
+
+All runtime flags (GitHub, OpenAI, RAG, LangSmith) are centralized here via
+pydantic-settings. Call ``get_settings()`` once at process start so LangSmith
+env vars are applied before LangChain imports.
+"""
+
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -5,6 +12,7 @@ from pathlib import Path
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Project root (capstone/) — two levels up from this package file.
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -27,12 +35,15 @@ def apply_langsmith_env(settings: "Settings") -> None:
 
 
 class Settings(BaseSettings):
+    """Typed settings with defaults; values override from environment / `.env`."""
+
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
+    # --- LLM (OpenAI-compatible) ---
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_api_base: str | None = None
@@ -55,28 +66,34 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LANGSMITH_ENDPOINT", "LANGCHAIN_ENDPOINT"),
     )
 
+    # --- GitHub integration ---
     github_token: str = ""
-    sandbox_repo: str = ""
+    sandbox_repo: str = ""  # owner/repo allowlist for auto approve/merge
     allow_write_actions: bool = False
-    use_pr_fixture: bool = False
-    github_mcp_command: str = ""
+    use_pr_fixture: bool = False  # offline JSON fixtures instead of live API
+    github_mcp_command: str = ""  # optional shell command for MCP bridge
 
+    # --- Persistence paths ---
     chroma_persist_dir: Path = ROOT_DIR / "data" / "chroma"
     checkpoint_dir: Path = ROOT_DIR / "data" / "checkpoints"
 
-    rag_retrieve_n: int = 20
-    rag_top_k: int = 5
+    # --- RAG retrieval ---
+    rag_retrieve_n: int = 20  # wide recall from vector search
+    rag_top_k: int = 5  # final chunks after cross-encoder rerank
     rag_rerank_enabled: bool = True
     rag_rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
+    # --- PR diff limits (avoid OOM on huge PRs) ---
     max_diff_files: int = 30
     max_diff_lines: int = 500
 
+    # --- Feature toggles ---
     enable_sast: bool = False
     post_pr_comments: bool = False
-    heuristic_only: bool = False
-    use_sqlite_checkpoint: bool = True  # USE_SQLITE_CHECKPOINT
+    heuristic_only: bool = False  # skip LLM; use regex rules only
+    use_sqlite_checkpoint: bool = True
 
+    # --- Email notifications (optional; always logs to data/notification.log) ---
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
@@ -86,6 +103,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_enabled(self) -> bool:
+        """True when OpenAI key is set and heuristic-only mode is off."""
         return bool(self.openai_api_key.strip()) and not self.heuristic_only
 
     @property
@@ -93,6 +111,7 @@ class Settings(BaseSettings):
         return self.langsmith_tracing and bool(self.langsmith_api_key.strip())
 
     def writes_allowed(self, repo: str, mode: str) -> bool:
+        """Auto approve/merge only in auto mode with explicit flags and sandbox match."""
         if mode != "auto":
             return False
         if not self.allow_write_actions:
@@ -104,6 +123,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Cached settings singleton; clears cache in tests via ``get_settings.cache_clear()``."""
     settings = Settings()
     apply_langsmith_env(settings)
     return settings

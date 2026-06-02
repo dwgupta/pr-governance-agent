@@ -85,6 +85,7 @@ ORDER BY event_date, payment_id
 
 
 def seed(db_path: Path) -> int:
+    """Create payments table, indexes, and demo rows; return row count."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:

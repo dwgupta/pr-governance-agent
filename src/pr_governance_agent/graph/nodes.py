@@ -1,3 +1,9 @@
+"""LangGraph node implementations for the PR governance workflow.
+
+Each function accepts ``PRReviewState``, mutates it in place, and returns it.
+Nodes are wrapped with ``track_node`` for per-node latency in ``node_timings``.
+"""
+
 from __future__ import annotations
 
 from pr_governance_agent.config import get_settings
@@ -11,6 +17,7 @@ from pr_governance_agent.state import Finding, PRReviewState
 
 
 def ingest_pr(state: PRReviewState) -> PRReviewState:
+    """Fetch PR metadata and diffs from GitHub API, MCP bridge, or JSON fixture."""
     with track_node(state, "ingest_pr"):
         errors = list(state.get("errors") or [])
         try:
@@ -24,6 +31,7 @@ def ingest_pr(state: PRReviewState) -> PRReviewState:
             if pr_url:
                 data = client.fetch_pr(pr_url)
             else:
+                # Demo default when no URL provided
                 data = client.fetch_pr("https://github.com/demo/migration-sandbox/pull/1")
 
             state["pr_metadata"] = data.get("pr_metadata", {})
@@ -39,12 +47,14 @@ def ingest_pr(state: PRReviewState) -> PRReviewState:
 
 
 def _build_rag_query(state: PRReviewState) -> str:
+    """Combine PR title, body, and file list into a single retrieval query."""
     meta = state.get("pr_metadata") or {}
     files = ", ".join(state.get("changed_files") or [])
     return f"{meta.get('title', '')} {meta.get('body', '')} files: {files}"
 
 
 def _append_rag_index_warnings(state: PRReviewState, store: ChromaStore) -> None:
+    """Surface ingest reminder if Chroma collections are empty."""
     existing = list(state.get("warnings") or [])
     for warning in store.rag_index_warnings():
         if warning not in existing:
@@ -53,6 +63,7 @@ def _append_rag_index_warnings(state: PRReviewState, store: ChromaStore) -> None
 
 
 def rag_requirements(state: PRReviewState) -> PRReviewState:
+    """Retrieve top-k migration/requirements policy chunks for this PR."""
     with track_node(state, "rag_requirements"):
         settings = get_settings()
         store = ChromaStore()
@@ -67,6 +78,7 @@ def rag_requirements(state: PRReviewState) -> PRReviewState:
 
 
 def rag_security_policies(state: PRReviewState) -> PRReviewState:
+    """Retrieve top-k security/PII policy chunks for this PR."""
     with track_node(state, "rag_security_policies"):
         settings = get_settings()
         store = ChromaStore()
@@ -80,6 +92,7 @@ def rag_security_policies(state: PRReviewState) -> PRReviewState:
 
 
 def run_sast_optional(state: PRReviewState) -> PRReviewState:
+    """Run Semgrep on patch files when ENABLE_SAST=true and semgrep is on PATH."""
     with track_node(state, "run_sast_optional"):
         settings = get_settings()
         if settings.enable_sast:
@@ -90,6 +103,7 @@ def run_sast_optional(state: PRReviewState) -> PRReviewState:
 
 
 def evaluate_requirements(state: PRReviewState) -> PRReviewState:
+    """LLM or heuristic review of diffs against migration requirements policies."""
     with track_node(state, "evaluate_requirements"):
         state["requirements_findings"] = evaluate_with_llm_or_heuristic(
             state,
@@ -100,6 +114,7 @@ def evaluate_requirements(state: PRReviewState) -> PRReviewState:
 
 
 def evaluate_security(state: PRReviewState) -> PRReviewState:
+    """LLM or heuristic security review; merges optional Semgrep findings."""
     with track_node(state, "evaluate_security"):
         policy = evaluate_with_llm_or_heuristic(
             state,
@@ -112,6 +127,7 @@ def evaluate_security(state: PRReviewState) -> PRReviewState:
 
 
 def synthesize_review(state: PRReviewState) -> PRReviewState:
+    """Build human-readable markdown review from findings and retrieved context."""
     with track_node(state, "synthesize_review"):
         req = state.get("requirements_findings") or []
         sec = state.get("security_findings") or []
@@ -163,6 +179,7 @@ def synthesize_review(state: PRReviewState) -> PRReviewState:
 
 
 def route_decision(state: PRReviewState) -> PRReviewState:
+    """Set passed/blockers and overall_risk from finding severities."""
     with track_node(state, "route_decision"):
         req = state.get("requirements_findings") or []
         sec = state.get("security_findings") or []
@@ -187,6 +204,7 @@ def route_decision(state: PRReviewState) -> PRReviewState:
 
 
 def execute_github_advisory(state: PRReviewState) -> PRReviewState:
+    """Advisory path: log review or post PR comment when POST_PR_COMMENTS=true."""
     with track_node(state, "execute_github_advisory"):
         settings = get_settings()
         actions = list(state.get("github_actions_taken") or [])
@@ -198,7 +216,7 @@ def execute_github_advisory(state: PRReviewState) -> PRReviewState:
                 action = client.post_comment(
                     state["repo"],
                     int(state["pr_number"]),
-                    review[:60000],
+                    review[:60000],  # GitHub comment size limit
                 )
                 actions.append(action)
             except Exception as exc:
@@ -213,6 +231,7 @@ def execute_github_advisory(state: PRReviewState) -> PRReviewState:
 
 
 def execute_github_auto(state: PRReviewState) -> PRReviewState:
+    """Auto path: approve/merge only when passed, mode=auto, and writes allowed."""
     with track_node(state, "execute_github_auto"):
         settings = get_settings()
         actions = list(state.get("github_actions_taken") or [])
@@ -246,6 +265,7 @@ def execute_github_auto(state: PRReviewState) -> PRReviewState:
 
 
 def notify_team(state: PRReviewState) -> PRReviewState:
+    """Append review to notification log and optionally send SMTP email."""
     with track_node(state, "notify_team"):
         passed = bool(state.get("passed"))
         subject = (

@@ -1,4 +1,7 @@
-"""Tests for section-first markdown chunking."""
+"""Tests for section-first markdown chunking and table preservation.
+
+Verifies ingest_markdown splits on ## headings and keeps dialect tables intact.
+"""
 
 from __future__ import annotations
 

@@ -1,3 +1,10 @@
+"""Markdown policy corpus ingestion with section-first chunking.
+
+Each ``##`` section becomes one chunk when under the token limit. Tables and
+long sections use higher caps or sliding token windows. Chunks are upserted
+into Chroma ``requirements`` or ``security_policies`` collections.
+"""
+
 import hashlib
 import re
 from functools import lru_cache
@@ -13,7 +20,7 @@ from pr_governance_agent.rag.chroma_store import (
 
 # Section-first chunking: one ## section per chunk when under token limit.
 MAX_SECTION_TOKENS = 512
-TABLE_SECTION_MAX_TOKENS = 1024
+TABLE_SECTION_MAX_TOKENS = 1024  # keep dialect mapping tables intact
 FALLBACK_CHUNK_TOKENS = 512
 FALLBACK_OVERLAP_TOKENS = 100
 ENCODING_NAME = "cl100k_base"
@@ -37,11 +44,13 @@ def _contains_markdown_table(text: str) -> bool:
 
 
 def _extract_h1(content: str) -> str:
+    """Document title from first markdown H1."""
     match = re.search(r"^# (.+)$", content, flags=re.MULTILINE)
     return match.group(1).strip() if match else ""
 
 
 def _split_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Split on ## headings into (section_title, body) pairs."""
     doc_title = _extract_h1(content)
     parts = re.split(r"^(## .+)$", content, flags=re.MULTILINE)
     if len(parts) <= 1:
@@ -58,6 +67,7 @@ def _split_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
 
 
 def _format_chunk_text(doc_title: str, section_title: str, body: str) -> str:
+    """Prefix chunk with breadcrumb so retrieval knows document context."""
     if doc_title and section_title:
         prefix = f"{doc_title} > {section_title}"
     elif doc_title:
@@ -72,6 +82,7 @@ def _format_chunk_text(doc_title: str, section_title: str, body: str) -> str:
 
 
 def _token_window_split(text: str) -> list[str]:
+    """Sliding token windows for sections that exceed MAX_SECTION_TOKENS."""
     tokens = _tokenizer().encode(text)
     if not tokens:
         return []
@@ -95,6 +106,7 @@ def _chunk_section(
     source: str,
     offset_base: int = 0,
 ) -> list[tuple[str, dict]]:
+    """Produce one or more (chunk_id, {text, metadata}) for a single section."""
     if not body.strip():
         return []
 
@@ -145,6 +157,7 @@ def ingest_markdown_file(
     collection_name: str,
     store: ChromaStore | None = None,
 ) -> int:
+    """Chunk one markdown file and upsert all chunks into the given collection."""
     store = store or ChromaStore()
     collection = store.get_or_create_collection(collection_name)
     content = path.read_text(encoding="utf-8")
@@ -169,6 +182,7 @@ def ingest_corpus_dir(
     corpus_dir: Path,
     store: ChromaStore | None = None,
 ) -> dict[str, int]:
+    """Ingest all ``*.md`` files; route security/pii filenames to security collection."""
     store = store or ChromaStore()
     counts = {REQUIREMENTS_COLLECTION: 0, SECURITY_COLLECTION: 0}
 

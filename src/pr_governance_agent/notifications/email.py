@@ -1,3 +1,5 @@
+"""Team notifications: always append to log file; optionally send SMTP email."""
+
 import smtplib
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -12,6 +14,7 @@ def send_notification(
     *,
     passed: bool,
 ) -> bool:
+    """Log review outcome to ``data/notification.log``; send email if SMTP is configured."""
     settings = get_settings()
     log_path = ROOT_DIR / "data" / "notification.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)

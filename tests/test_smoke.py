@@ -1,4 +1,7 @@
-"""Smoke tests for PR governance agent (offline fixtures)."""
+"""End-to-end smoke tests: graph invoke, RAG, empty Chroma warnings.
+
+Uses offline fixtures (USE_PR_FIXTURE) and heuristic mode for deterministic CI.
+"""
 
 from __future__ import annotations
 

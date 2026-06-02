@@ -1,4 +1,8 @@
-"""Streamlit dashboard for PR Governance Agent."""
+"""Streamlit dashboard for PR Governance Agent.
+
+Runs the LangGraph workflow in a background thread so the UI stays responsive.
+Shows LLM/RAG status in the sidebar and full review output after completion.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +28,7 @@ st.set_page_config(page_title="PR Governance Agent", layout="wide")
 st.title("PR Governance Agent")
 st.caption("Agentic PR review for data engineering migration workflows (RAG + GitHub + optional SAST)")
 
+# Session state: single-thread executor avoids blocking the Streamlit event loop
 if "executor" not in st.session_state:
     st.session_state.executor = ThreadPoolExecutor(max_workers=1)
 if "future" not in st.session_state:
@@ -33,6 +38,7 @@ if "last_result" not in st.session_state:
 
 
 def _run_graph(pr_url: str, mode: str) -> dict:
+    """Invoke compiled graph; each run gets a unique thread_id for checkpointing."""
     app = compile_graph()
     state = initial_state(pr_url=pr_url, mode=mode)
     return app.invoke(state, config={"configurable": {"thread_id": str(uuid.uuid4())}})

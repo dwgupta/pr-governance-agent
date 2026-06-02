@@ -1,3 +1,9 @@
+"""Cross-encoder reranking for RAG retrieval precision.
+
+After HNSW returns N candidates, a sentence-transformers CrossEncoder scores
+each (query, chunk) pair and returns the top-k by relevance score.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -11,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def _load_cross_encoder(model_name: str):
+    """Load reranker once per process (downloads from Hugging Face on first use)."""
     from sentence_transformers import CrossEncoder
 
     return CrossEncoder(model_name)
@@ -22,6 +29,7 @@ def rerank(
     top_k: int,
     model_name: str | None = None,
 ) -> list[RetrievalChunk]:
+    """Reorder chunks by cross-encoder score; preserve original score as vector_score."""
     if not chunks:
         return []
 

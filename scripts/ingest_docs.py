@@ -20,6 +20,7 @@ from pr_governance_agent.rag.ingest_pdf import ingest_pdf_file
 
 
 def main() -> int:
+    """Ingest markdown (and optional PDF) from sample_corpus into Chroma."""
     corpus_dir = ROOT / "data" / "sample_corpus"
     if not corpus_dir.exists():
         print(f"Missing corpus directory: {corpus_dir}", file=sys.stderr)
