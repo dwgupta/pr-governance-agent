@@ -146,7 +146,7 @@ Use the toggles to change behavior without editing `.env`. Then check **Effectiv
    - **auto**: May approve/merge only if review passes **and** `ALLOW_WRITE_ACTIONS=true` **and** the PR repo matches `SANDBOX_REPO`.
 
 3. **Run review**  
-   Starts the agent. Wait for **Agent running…** to finish (first run may take longer while models load).
+   Starts the agent. The page **auto-refreshes every second** until the workflow finishes (you should see **Agent running…**, then results).
 
 4. **Clear results**  
    Clears the last review from the page.

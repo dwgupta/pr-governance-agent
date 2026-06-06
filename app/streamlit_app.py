@@ -12,6 +12,7 @@ import os
 os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
 import sys
+import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -37,6 +38,11 @@ if "future" not in st.session_state:
     st.session_state.future = None
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
+if "run_error" not in st.session_state:
+    st.session_state.run_error = None
+
+# How often Streamlit reruns while waiting for the background graph job.
+_RUN_POLL_SECONDS = 1.0
 
 
 def _env_bool(value: bool) -> str:
@@ -223,6 +229,7 @@ with col2:
     if st.button("Clear results"):
         st.session_state.last_result = None
         st.session_state.future = None
+        st.session_state.run_error = None
 
 if run_clicked:
     run_config = {
@@ -237,10 +244,12 @@ if run_clicked:
         "github_token": st.session_state.get("github_token_override", ""),
         "openai_api_key": st.session_state.get("openai_api_key_override", ""),
     }
-    with st.spinner("Running LangGraph workflow..."):
-        st.session_state.future = st.session_state.executor.submit(
-            _run_graph, pr_url, mode, run_config
-        )
+    st.session_state.last_result = None
+    st.session_state.run_error = None
+    st.session_state.future = st.session_state.executor.submit(
+        _run_graph, pr_url, mode, run_config
+    )
+    st.rerun()
 
 if st.session_state.future is not None:
     future: Future = st.session_state.future
@@ -248,10 +257,20 @@ if st.session_state.future is not None:
         try:
             st.session_state.last_result = future.result()
         except Exception as exc:
-            st.error(f"Run failed: {exc}")
+            st.session_state.run_error = str(exc)
         st.session_state.future = None
+        st.rerun()
     else:
-        st.status("Agent running…", state="running")
+        with st.status("Agent running…", state="running"):
+            st.caption(
+                "PR governance workflow is running in the background. "
+                "This page refreshes automatically every second."
+            )
+        time.sleep(_RUN_POLL_SECONDS)
+        st.rerun()
+
+if st.session_state.run_error:
+    st.error(f"Run failed: {st.session_state.run_error}")
 
 result = st.session_state.last_result
 if result:
