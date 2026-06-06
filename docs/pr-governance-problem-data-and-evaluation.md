@@ -68,8 +68,9 @@ Grounded, cited PR review briefs—produced by a LangGraph agent with RAG over m
 | R4 | Produce a markdown review with severity, file, message, and policy citation |
 | R5 | Route to pass/fail with explicit blockers on high/critical findings |
 | R6 | Default to advisory mode; gate approve/merge behind explicit flags |
-| R7 | Surface warnings when RAG index is empty or LLM falls back to heuristics |
+| R7 | Surface warnings when RAG index is empty, LLM falls back to heuristics, or auto mode targets an already-merged PR |
 | R8 | Support offline demo and CI without GitHub token or OpenAI key |
+| R9 | Validate BigQuery SQL syntax on changed `.sql` files; fail on parse errors and trailing commas before clauses |
 
 ### 1.7 Non-goals and constraints
 
@@ -122,7 +123,7 @@ Location: `data/sample_corpus/`
 
 | File | Collection | Content |
 |------|------------|---------|
-| `bigquery_migration_requirements.md` | `requirements` | Partitioning, dialect rules, dbt tests, cost controls |
+| `bigquery_migration_requirements.md` | `requirements` | Partitioning, dialect rules, **BigQuery SQL syntax**, dbt tests, cost controls |
 | `dialect_conversion_guide.md` | `requirements` | Oracle → BigQuery syntax mapping table |
 | `security_pii_policy.md` | `security_policies` | PII fields, secrets, logging, PR declarations |
 
@@ -152,7 +153,7 @@ These markdown files simulate exported Confluence/PDF enterprise standards for t
 | Fallback overlap | 100 tokens |
 | Metadata fields | `source`, `section`, `doc_title` |
 
-**Expected index size (current corpus):** ~7 requirements chunks + ~4 security chunks.
+**Expected index size (current corpus):** ~8 requirements chunks + ~4 security chunks (re-run ingest after corpus edits).
 
 ### 2.3 Online retrieval (RAG at review time)
 
@@ -177,7 +178,7 @@ If collections are empty (ingest not run), the agent emits explicit warnings and
 
 **Extracted fields per PR:**
 
-- `pr_metadata`: title, body, state, author, base/head refs
+- `pr_metadata`: title, body, state, **merged**, **merged_at**, author, base/head refs
 - `changed_files`: list of file paths
 - `patches`: unified diff hunks per file
 
@@ -188,7 +189,13 @@ If collections are empty (ingest not run), the agent emits explicit warnings and
 | `MAX_DIFF_FILES` | 30 | Cap files fetched from GitHub |
 | `MAX_DIFF_LINES` | 500 | Cap total diff lines passed to graph |
 
-### 2.5 LLM evaluation input assembly
+### 2.5 Requirements evaluation (heuristics + SQL syntax + LLM)
+
+**Deterministic (always on for requirements when patches include SQL):**
+
+1. **BigQuery SQL syntax** — reconstruct SQL from diff hunks; sqlglot parse + trailing-comma rules (`sql/bigquery_validator.py`)
+2. **Dialect heuristics** — `ROWNUM`, Oracle `(+)`, `SELECT *` regex when LLM is off or on fallback
+3. **LLM path** — syntax findings merged with LLM JSON findings (dialect regex not duplicated on LLM success)
 
 For each review type (`requirements`, `security`), the LLM receives:
 
@@ -248,10 +255,13 @@ The `route_decision` node assigns outcomes from merged findings:
 | Condition | `passed` | `overall_risk` |
 |-----------|----------|----------------|
 | No high or critical findings | `true` | `low` or `medium` |
-| Any **high** finding | `false` | `high` |
+| Any **high** finding (incl. `sql_syntax`) | `false` | `high` |
 | Any **critical** finding | `false` | `blocked` |
+| PR ingest error (`ingest_pr:`) | `false` | `blocked` (fail-closed) |
 
-Blockers list includes `"High or critical findings present"` when applicable.
+Blockers list includes `"High or critical findings present"` or ingest failure message when applicable.
+
+**Note:** Medium-severity findings alone do **not** fail the review.
 
 ### 3.3 Heuristic eval cases (`eval/cases.yaml`)
 
@@ -261,12 +271,13 @@ Blockers list includes `"High or critical findings present"` when applicable.
 | `oracle_rownum_dialect` | Oracle `ROWNUM` in SQL extract | Fail, high risk, ≥1 requirements finding |
 | `pii_email_contradiction` | Raw email column; PR body says "No PII" | Fail, blocked, ≥1 security finding |
 | `select_star_cost` | `SELECT *` on reconciliation SQL | Fail, high risk, ≥1 requirements finding |
+| `invalid_bigquery_syntax` | Trailing comma / invalid SQL in extract | Fail, high risk, ≥1 `sql_syntax` finding |
 | `advisory_no_auto_merge` | Clean PR in advisory mode | Pass; no approve/merge actions |
 | `auto_mode_without_writes` | Auto mode with writes disabled | Pass; `auto_skipped_writes_not_allowed` |
 | `empty_patches_graceful` | PR with no diff hunks | Pass, low risk |
 | `red_team_secret_in_yaml` | Hardcoded secret in YAML patch | Fail, ≥1 security finding |
 
-**CI gate:** All 8 heuristic cases must pass on every push/PR to `main`.
+**CI gate:** All 9 heuristic cases must pass on every push/PR to `main`.
 
 ### 3.4 LLM eval cases (`eval/cases_llm.yaml`)
 
@@ -287,19 +298,21 @@ Blockers list includes `"High or critical findings present"` when applicable.
 
 | Test module | What it validates |
 |-------------|-------------------|
-| `tests/test_smoke.py` | Graph invoke, dialect detection, Chroma retrieve, empty-index warnings |
-| `tests/test_llm.py` | LLM JSON parse, fallback warnings, successful LLM path |
+| `tests/test_smoke.py` | Graph invoke, dialect/syntax detection, Chroma retrieve, empty-index warnings, merged-PR auto skip |
+| `tests/test_bigquery_validator.py` | SQL patch reconstruction, trailing comma, sqlglot errors |
+| `tests/test_llm.py` | LLM JSON parse, fallback warnings, token usage recording |
+| `tests/test_usage.py` | Token aggregation and cost estimation helpers |
 | `tests/test_chunking.py` | Section-first chunking, table preservation |
 | `tests/test_reranker.py` | Cross-encoder reordering and model-error fallback |
 | `tests/test_langsmith_config.py` | Tracing env bootstrap |
 
-**CI gate:** 18 unit tests must pass (heuristic mode, reranking enabled).
+**CI gate:** Unit tests must pass (heuristic mode, reranking enabled).
 
 ### 3.6 Success metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| **Heuristic eval pass rate** | 100% (8/8) | `python eval/run_eval.py` |
+| **Heuristic eval pass rate** | 100% (9/9) | `python eval/run_eval.py` |
 | **LLM eval pass rate** | 100% (4/4) | `python eval/run_eval.py --llm` |
 | **Unit test pass rate** | 100% | `pytest tests/ -q` |
 | **RAG index completeness** | Both collections non-empty | `rag_index_warnings()` returns `[]` after ingest |
@@ -313,19 +326,21 @@ Blockers list includes `"High or critical findings present"` when applicable.
 Before demo or capstone submission, verify:
 
 - [ ] `bash scripts/setup.sh` completes (venv, ingest, optional seed)
-- [ ] `python eval/run_eval.py` → 8/8 pass
+- [ ] `python eval/run_eval.py` → 9/9 pass
 - [ ] `python eval/run_eval.py --llm` → 4/4 pass (with valid OpenAI key)
 - [ ] `pytest tests/ -q` → all pass
 - [ ] Streamlit shows **LLM enabled: True** when `OPENAI_API_KEY` is set and `HEURISTIC_ONLY=false`
 - [ ] Clean PR (`sample_pr.json`) passes under LLM mode without false positives
-- [ ] Violation PRs (`pr_dialect_violation.json`, etc.) fail with cited findings
+- [ ] Violation PRs (`pr_dialect_violation.json`, `pr_invalid_bq_syntax.json`, etc.) fail with cited findings
+- [ ] Live PR with trailing comma (e.g. sandbox PR #8) fails syntax check
+- [ ] Auto mode on already-merged PR shows warning and skips merge
 - [ ] No approve/merge in advisory mode
 
 ### 3.8 Known limitations (eval scope)
 
 | Limitation | Impact on evaluation |
 |------------|---------------------|
-| Small policy corpus (~11 chunks) | Retrieval eval is POC-scale, not production recall@k |
+| Small policy corpus (~12 chunks) | Retrieval eval is POC-scale, not production recall@k |
 | LLM non-determinism | LLM cases allow `expect_risk_in` where severity may vary |
 | Truncated diffs | Very large PRs may not be fully evaluated |
 | Heuristic fallback | CI tests heuristics; LLM quality requires separate `--llm` run |
@@ -340,9 +355,11 @@ Before demo or capstone submission, verify:
 | Architecture diagrams | [pr-governance-agent-architecture.md](pr-governance-agent-architecture.md) |
 | Implementation design | [pr-governance-agent-technical-design.md](pr-governance-agent-technical-design.md) |
 | Setup and run commands | [../README.md](../README.md) |
+| Streamlit UI guide | [streamlit-ui-usage-guide.md](streamlit-ui-usage-guide.md) |
+| Usage guide (CLI, connectivity) | [pr-governance-agent-usage-guide.md](pr-governance-agent-usage-guide.md) |
 | Eval case definitions | [../eval/cases.yaml](../eval/cases.yaml), [../eval/cases_llm.yaml](../eval/cases_llm.yaml) |
 | Policy corpus | [../data/sample_corpus/](../data/sample_corpus/) |
 
 ---
 
-*Last updated: May 2026 — aligned with PR Governance Agent capstone POC.*
+*Last updated: June 2026 — aligned with PR Governance Agent capstone POC.*

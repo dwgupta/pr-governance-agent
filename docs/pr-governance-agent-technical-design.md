@@ -105,12 +105,12 @@ See [`src/pr_governance_agent/state.py`](../src/pr_governance_agent/state.py) fo
 | `rag_requirements` | Chroma query on requirements collection |
 | `rag_security_policies` | Chroma query on security policies |
 | `run_sast_optional` | Semgrep subprocess if available |
-| `evaluate_requirements` | LLM/heuristic vs retrieved chunks |
+| `evaluate_requirements` | LLM/heuristic + **BigQuery SQL syntax** (sqlglot) |
 | `evaluate_security` | Merge policy + SAST findings |
 | `synthesize_review` | Markdown brief |
-| `route_decision` | Set `passed`, `blockers` |
+| `route_decision` | Set `passed`, `blockers`, `overall_risk` (fail-closed on ingest errors) |
 | `execute_github_advisory` | Comment draft / post if enabled |
-| `execute_github_auto` | Approve/merge if `mode=auto` and flags allow |
+| `execute_github_auto` | Approve/merge if allowed; skip if already merged |
 | `notify_team` | Email stub |
 
 ### Routing
@@ -142,7 +142,11 @@ Checkpoints: `data/checkpoints/` via `SqliteSaver`.
 - **Optional:** MCP GitHub server (`GITHUB_MCP_COMMAND`) for tool-standardized access; same operations behind `GitHubClient` interface.
 - **Offline:** `USE_PR_FIXTURE=true` loads `eval/fixtures/sample_pr.json`.
 
-**Write tools (approve, merge):** only when `mode=auto`, `ALLOW_WRITE_ACTIONS=true`, and repo allowlisted via `SANDBOX_REPO`.
+**Write tools (approve, merge):** only when `mode=auto`, `ALLOW_WRITE_ACTIONS=true`, repo allowlisted via `SANDBOX_REPO`, review **passed**, and PR **not already merged** (`pr_metadata.merged` from GitHub).
+
+**Already merged:** Auto mode records `auto_skipped_already_merged` and warns: *PR is already merged — please validate your input.*
+
+**Self-approval:** If the token user is the PR author, approve is skipped (`approve_skipped_self_author`); merge may still proceed when allowed.
 
 **Rate limits:** cache PR payload in state after `ingest_pr`; cap files at `MAX_DIFF_FILES`, lines at `MAX_DIFF_LINES`.
 
@@ -152,7 +156,7 @@ Checkpoints: `data/checkpoints/` via `SqliteSaver`.
 
 | Collection | Content |
 |------------|---------|
-| `requirements` | Migration playbooks, BQ partitioning, naming, dialect rules |
+| `requirements` | Migration playbooks, BQ partitioning, naming, dialect rules, **BigQuery SQL syntax** |
 | `security_policies` | PII handling, secrets, access patterns |
 
 **Ingestion:** `python scripts/ingest_docs.py` — markdown from `data/sample_corpus/`, optional PDF via `pypdf`.
@@ -179,7 +183,7 @@ Implementation: [`src/pr_governance_agent/rag/ingest_markdown.py`](../src/pr_gov
 
 Chroma collections use **HNSW** (Hierarchical Navigable Small World) with **cosine** distance. This fits the POC because:
 
-- Corpus is small (~11 chunks today; expected tens to low hundreds)
+- Corpus is small (~12 chunks today; expected tens to low hundreds)
 - Sub-millisecond query latency with no extra ops overhead
 - Cosine space matches Chroma's default embedding model (`all-MiniLM-L6-v2`)
 - Dual collections keep each search graph small
@@ -220,12 +224,31 @@ Cross-encoder score replaces vector similarity in `RetrievalChunk.score`; origin
 
 ## 8. Streamlit UX
 
-- PR URL input
+- Branded header (AIENGG logo, purple theme via `.streamlit/config.toml`)
+- PR URL input and **Run review** / **Clear results** in bordered sections
+- Sidebar runtime toggles (fixture, heuristic-only, writes, SAST, LangSmith, sandbox)
 - Radio: **Advisory** (default) vs **Auto**
-- Run button → background graph invocation
-- Progress via `st.status`
-- Results: risk badge, blockers list, review markdown, actions taken
-- Warning banner when Auto + `ALLOW_WRITE_ACTIONS`
+- Background graph invocation with 1s auto-refresh while running
+- Results: risk/passed metrics, blockers, warnings, review markdown
+- **Per evaluation step** expander: LLM token usage and estimated cost (optional `OPENAI_*_COST_PER_1M`)
+- Warning when Auto + merged PR or writes disabled
+
+---
+
+## 8b. BigQuery SQL syntax validation
+
+Module: [`src/pr_governance_agent/sql/bigquery_validator.py`](../src/pr_governance_agent/sql/bigquery_validator.py)
+
+| Step | Behavior |
+|------|----------|
+| Scope | Changed `.sql` files (including dbt models) |
+| Reconstruct SQL | Unified diff hunk (context + added lines; `SELECT` from `@@` header) |
+| dbt Jinja | Neutralize `{{ ref(...) }}`, `{% config %}` before parse |
+| Parse | sqlglot with `read="bigquery"` |
+| Extra rules | Trailing comma before `FROM` / `WHERE` / `JOIN` (BigQuery-invalid; sqlglot may accept) |
+| Finding | `severity=high`, `category=sql_syntax` → fails `route_decision` |
+
+Runs on every requirements evaluation (heuristic-only, LLM, and LLM+syntax merge paths).
 
 ---
 
@@ -235,6 +258,9 @@ Cross-encoder score replaces vector similarity in `RetrievalChunk.score`; origin
 |----------|---------|
 | `OPENAI_API_KEY` | LLM |
 | `OPENAI_MODEL` | Default `gpt-4o-mini` |
+| `OPENAI_INPUT_COST_PER_1M` | Optional USD/1M input tokens for Streamlit cost estimate |
+| `OPENAI_OUTPUT_COST_PER_1M` | Optional USD/1M output tokens for Streamlit cost estimate |
+| `HF_TOKEN` | Optional Hugging Face Hub token (reranker download) |
 | `GITHUB_TOKEN` | API access |
 | `ALLOW_WRITE_ACTIONS` | `false` default |
 | `SANDBOX_REPO` | `owner/repo` allowlist for writes |
@@ -256,11 +282,13 @@ Cross-encoder score replaces vector similarity in `RetrievalChunk.score`; origin
 | 1 | Clean partitioning PR | Pass, low risk |
 | 2 | `ROWNUM` dialect leak | Fail requirements |
 | 3 | Raw PII column | Fail security, blocked |
-| 4 | Missing partition filter on large table | Medium/blocker |
-| 5 | PR body claims no PII, diff adds email | Red-team fail |
-| 6 | Advisory mode | No merge actions |
-| 7 | Auto mode + fixture pass | Actions logged only if flags on |
-| 8 | Empty diff | Graceful message |
+| 4 | `SELECT *` in reconciliation SQL | Fail, high |
+| 5 | Invalid BigQuery SQL syntax | Fail, high (`sql_syntax`) |
+| 6 | PR body claims no PII, diff adds email | Red-team fail |
+| 7 | Advisory mode | No merge actions |
+| 8 | Auto mode + fixture pass | Actions logged only if flags on |
+| 9 | Empty diff | Graceful message |
+| 10 | Auto mode + already merged PR | Warning + `auto_skipped_already_merged` |
 
 **Metrics:** post-rerank retrieval recall@5 on labeled queries; zero false merges in advisory; tool success rate for `ingest_pr`.
 
@@ -311,8 +339,10 @@ Cross-encoder score replaces vector similarity in `RetrievalChunk.score`; origin
 langgraph>=0.2.60
 langchain-core>=0.3.0
 langchain-openai>=0.2.0
+langsmith>=0.1.0
 chromadb>=0.5.0
 sentence-transformers>=3.0.0
+sqlglot>=26.0.0
 tiktoken>=0.7.0
 streamlit>=1.28.0
 pydantic-settings>=2.0.0
@@ -320,6 +350,7 @@ pypdf>=4.0.0
 httpx>=0.27.0
 pyyaml>=6.0.0
 python-dotenv>=1.0.0
+langgraph-checkpoint-sqlite>=2.0.0
 ```
 
 Optional: Semgrep CLI, Node.js for GitHub MCP server.

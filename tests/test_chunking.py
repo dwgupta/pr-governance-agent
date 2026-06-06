@@ -22,7 +22,7 @@ def test_split_sections_extracts_h1_and_headings():
     content = (CORPUS / "bigquery_migration_requirements.md").read_text(encoding="utf-8")
     doc_title, sections = _split_sections(content)
     assert doc_title == "BigQuery Migration Engineering Requirements"
-    assert len(sections) == 4
+    assert len(sections) == 5
     assert sections[0][0] == "Partitioning and clustering"
 
 
@@ -57,7 +57,7 @@ def test_oversized_section_triggers_token_fallback():
 
 def test_sample_corpus_section_counts():
     expected = {
-        "bigquery_migration_requirements.md": 4,
+        "bigquery_migration_requirements.md": 5,
         "dialect_conversion_guide.md": 3,
         "security_pii_policy.md": 4,
     }

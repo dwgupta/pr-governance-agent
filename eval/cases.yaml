@@ -29,6 +29,13 @@ cases:
     expect_risk: high
     min_requirements_findings: 1
 
+  - id: invalid_bigquery_syntax
+    fixture: eval/fixtures/pr_invalid_bq_syntax.json
+    mode: advisory
+    expect_passed: false
+    expect_risk: high
+    min_requirements_findings: 1
+
   - id: advisory_no_auto_merge
     fixture: eval/fixtures/sample_pr.json
     mode: advisory

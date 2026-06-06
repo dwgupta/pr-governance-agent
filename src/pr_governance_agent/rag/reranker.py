@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 @lru_cache(maxsize=1)
 def _load_cross_encoder(model_name: str):
     """Load reranker once per process (downloads from Hugging Face on first use)."""
+    # Ensure HF_TOKEN from .env is exported to os.environ before Hub download.
+    get_settings()
     from sentence_transformers import CrossEncoder
 
     return CrossEncoder(model_name)

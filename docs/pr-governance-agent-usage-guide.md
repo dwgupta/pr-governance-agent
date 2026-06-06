@@ -11,7 +11,9 @@ It also includes:
 
 - End-to-end setup and run steps
 - New sample PR fixtures under `docs/samples/`
-- Full live GitHub path
+- **BigQuery SQL syntax validation** on changed `.sql` files
+- Full live GitHub path for `dwgupta/migration-sandbox-capstone`
+- Auto-mode guards (writes, sandbox, already-merged PR)
 - Connectivity testing for GitHub, OpenAI, LangChain, LangSmith, Chroma, Semgrep, MCP bridge, and SMTP
 
 ---
@@ -29,7 +31,19 @@ The workflow is implemented in `src/pr_governance_agent/graph/builder.py` and `s
 7. Advisory actions + optional auto actions (`execute_github_advisory`, `execute_github_auto`)
 8. Notify team (`notify_team`)
 
-PR URLs and fixtures in this repo are now aligned to:
+### Deterministic checks (always available)
+
+Even when the LLM is off or fails, the agent runs:
+
+| Check | Module | Blocks merge? |
+|-------|--------|---------------|
+| Oracle dialect regex (`ROWNUM`, `(+)`, `SELECT *`) | `graph/llm.py` | Yes (high) |
+| **BigQuery SQL syntax** on `.sql` diffs | `sql/bigquery_validator.py` | Yes (high) |
+| PII / secret regex | `graph/llm.py` | Yes (critical) |
+
+BigQuery syntax validation reconstructs SQL from unified diff hunks (context + added lines), neutralizes dbt Jinja (`{{ ref(...) }}`), parses with **sqlglot**, and flags trailing commas before `FROM` / `WHERE` (invalid in BigQuery, not caught by the parser alone).
+
+PR URLs and fixtures in this repo are aligned to:
 - `https://github.com/dwgupta/migration-sandbox-capstone/pull/<number>`
 - Repo slug `dwgupta/migration-sandbox-capstone`
 
@@ -74,7 +88,11 @@ Two new fixtures are provided in `docs/samples/`:
    - `docs/samples/failed_select_star_pr_fixture.json`
    - Adds wildcard query that should be flagged
 
-You can run the agent against either file by setting `PR_FIXTURE_PATH`.
+3. Invalid BigQuery syntax (eval fixture):
+   - `eval/fixtures/pr_invalid_bq_syntax.json`
+   - Trailing comma / unclosed parenthesis in SQL — should fail with `sql_syntax` finding
+
+You can run the agent against any fixture file by setting `PR_FIXTURE_PATH`.
 
 ---
 
@@ -123,11 +141,38 @@ Expected outcome:
 python eval/run_eval.py
 ```
 
-This uses `eval/cases.yaml` in heuristic mode.
+This uses `eval/cases.yaml` in heuristic mode (9 cases, including invalid BigQuery syntax).
 
 ---
 
-## 5) Part B - Run with LLM (OpenAI + LangChain) and optional LangSmith
+## 5) BigQuery SQL syntax validation
+
+**When:** Any PR that adds or changes a `.sql` file (including dbt models under `models/`).
+
+**How:** `src/pr_governance_agent/sql/bigquery_validator.py` runs during `evaluate_requirements` before or alongside LLM findings.
+
+**Examples that fail:**
+
+- Trailing comma before `FROM` (e.g. PR [#8](https://github.com/dwgupta/migration-sandbox-capstone/pull/8): `created_user,` then `FROM stg_payments`)
+- Unclosed parentheses in `WHERE`
+- Other parse errors detected by sqlglot
+
+**Policy reference:** RAG corpus section **BigQuery SQL syntax** in `data/sample_corpus/bigquery_migration_requirements.md` (re-run `python scripts/ingest_docs.py` after corpus edits).
+
+**Offline test:**
+
+```bash
+export USE_PR_FIXTURE=true
+export HEURISTIC_ONLY=true
+export PR_FIXTURE_PATH=eval/fixtures/pr_invalid_bq_syntax.json
+python scripts/run_graph_cli.py --mode advisory
+```
+
+Expected: `Passed: False`, `Risk: high`, requirements finding with `category: sql_syntax`.
+
+---
+
+## 6) Part B - Run with LLM (OpenAI + LangChain) and optional LangSmith
 
 This mode uses `langchain_openai.ChatOpenAI` in `src/pr_governance_agent/graph/llm.py`.
 
@@ -150,6 +195,13 @@ LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=lsv2_pt_...
 LANGSMITH_PROJECT=pr-governance-agent
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+```
+
+Optional Streamlit cost estimates (USD per 1M tokens):
+
+```env
+OPENAI_INPUT_COST_PER_1M=0.15
+OPENAI_OUTPUT_COST_PER_1M=0.60
 ```
 
 ### Step B2: Run with sample fixtures in LLM mode
@@ -185,7 +237,7 @@ Use PR URL:
 
 ---
 
-## 6) Full live GitHub path for `dwgupta/migration-sandbox-capstone`
+## 7) Full live GitHub path for `dwgupta/migration-sandbox-capstone`
 
 Use this when reviewing an actual PR from GitHub API (not fixture JSON).
 
@@ -212,6 +264,14 @@ Auto approve/merge executes only if all are true:
 - `ALLOW_WRITE_ACTIONS=true`
 - PR repo exactly matches `SANDBOX_REPO`
 - Review passed (`passed=true`)
+- PR is **not already merged** (`pr_metadata.merged` from GitHub)
+
+If the PR was merged earlier and you run auto mode again, you get a warning: **PR is already merged — please validate your input**, and `auto_skipped_already_merged` in actions (no duplicate approve/merge).
+
+Other skip reasons:
+- `auto_skipped_writes_not_allowed` — writes disabled or sandbox mismatch
+- `auto_skipped_failed_checks` — review did not pass
+- `approve_skipped_self_author` — token user is PR author (merge may still proceed)
 
 Command:
 
@@ -219,14 +279,15 @@ Command:
 python scripts/run_graph_cli.py --pr-url https://github.com/dwgupta/migration-sandbox-capstone/pull/1 --mode auto
 ```
 
-If safeguards do not match, action records include `auto_skipped_writes_not_allowed`.
+If safeguards do not match, action records include `auto_skipped_writes_not_allowed` or `auto_skipped_already_merged`.
+
+**Live syntax failure example:** PR [#8](https://github.com/dwgupta/migration-sandbox-capstone/pull/8) (trailing comma before `FROM`) should return `Passed: False`, `Risk: high`.
 
 ---
 
-## 7) Connectivity checks for all integrations
+## 8) Connectivity checks for all integrations
 
-A new script is added:
-- `scripts/check_connectivity.py`
+Script: `scripts/check_connectivity.py`
 
 Run all checks:
 
@@ -278,7 +339,7 @@ Exit code behavior:
 
 ---
 
-## 8) Quick troubleshooting
+## 9) Quick troubleshooting
 
 - Missing policy citations or empty retrieval:
   - Run `python scripts/ingest_docs.py`
@@ -295,10 +356,20 @@ Exit code behavior:
   - Ensure `ALLOW_WRITE_ACTIONS=true`
   - Ensure `SANDBOX_REPO=dwgupta/migration-sandbox-capstone`
   - Ensure mode is `auto` and review passed
+  - Check PR is still **open** (not already merged)
+
+- SQL syntax not failing when expected:
+  - Confirm the change is in a `.sql` file
+  - Re-run with `HEURISTIC_ONLY=true` (syntax checks run regardless of LLM)
+  - Trailing-comma errors require full hunk reconstruction — pull latest code
+
+- PR passed with medium risk but should fail:
+  - Only **high** and **critical** findings block merge; medium does not fail
+  - Syntax and dialect issues are **high** severity by design
 
 ---
 
-## 9) Recommended execution order
+## 10) Recommended execution order
 
 1. `python scripts/ingest_docs.py`
 2. `python scripts/check_connectivity.py`

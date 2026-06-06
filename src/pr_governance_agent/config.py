@@ -16,6 +16,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
+def apply_huggingface_env(settings: "Settings") -> None:
+    """Export Hugging Face token so sentence-transformers uses authenticated Hub requests."""
+    token = settings.hf_token.strip()
+    if token:
+        os.environ["HF_TOKEN"] = token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+    else:
+        os.environ.pop("HF_TOKEN", None)
+        os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
+
+
 def apply_langsmith_env(settings: "Settings") -> None:
     """Export LangSmith settings to os.environ so LangChain/LangGraph tracing works."""
     if settings.langsmith_api_key.strip():
@@ -47,6 +58,21 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_api_base: str | None = None
+    # Optional USD per 1M tokens for Streamlit cost estimates (override for your model).
+    openai_input_cost_per_1m: float = Field(
+        default=0.15,
+        validation_alias=AliasChoices(
+            "OPENAI_INPUT_COST_PER_1M",
+            "OPENAI_PROMPT_COST_PER_1M",
+        ),
+    )
+    openai_output_cost_per_1m: float = Field(
+        default=0.60,
+        validation_alias=AliasChoices(
+            "OPENAI_OUTPUT_COST_PER_1M",
+            "OPENAI_COMPLETION_COST_PER_1M",
+        ),
+    )
 
     # LangSmith — https://smith.langchain.com (tracing + token usage)
     langsmith_tracing: bool = Field(
@@ -76,6 +102,12 @@ class Settings(BaseSettings):
     # --- Persistence paths ---
     chroma_persist_dir: Path = ROOT_DIR / "data" / "chroma"
     checkpoint_dir: Path = ROOT_DIR / "data" / "checkpoints"
+
+    # Hugging Face Hub — used by sentence-transformers cross-encoder reranker
+    hf_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"),
+    )
 
     # --- RAG retrieval ---
     rag_retrieve_n: int = 20  # wide recall from vector search
@@ -125,5 +157,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached settings singleton; clears cache in tests via ``get_settings.cache_clear()``."""
     settings = Settings()
+    apply_huggingface_env(settings)
     apply_langsmith_env(settings)
     return settings

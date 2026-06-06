@@ -2,7 +2,12 @@
 
 import os
 
-from pr_governance_agent.config import Settings, apply_langsmith_env, get_settings
+from pr_governance_agent.config import (
+    Settings,
+    apply_huggingface_env,
+    apply_langsmith_env,
+    get_settings,
+)
 
 
 def test_apply_langsmith_env_sets_tracing(restore_os_environ):
@@ -21,6 +26,13 @@ def test_apply_langsmith_env_sets_tracing(restore_os_environ):
     assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
     assert os.environ["LANGSMITH_API_KEY"] == "lsv2_pt_test"
     assert os.environ["LANGSMITH_PROJECT"] == "test-project"
+
+
+def test_apply_huggingface_env_sets_hub_token(restore_os_environ):
+    settings = Settings.model_construct(hf_token="hf_test_token")
+    apply_huggingface_env(settings)
+    assert os.environ["HF_TOKEN"] == "hf_test_token"
+    assert os.environ["HUGGING_FACE_HUB_TOKEN"] == "hf_test_token"
 
 
 def test_get_settings_cached():

@@ -15,6 +15,8 @@ Agentic GitHub PR review for **data engineering migration** workflows (on-prem â
 - [Success sample fixture](docs/samples/success_pr_fixture.json)
 - [Failed sample fixture (`SELECT *` violation)](docs/samples/failed_select_star_pr_fixture.json)
 
+**Sandbox repo for live testing:** [dwgupta/migration-sandbox-capstone](https://github.com/dwgupta/migration-sandbox-capstone)
+
 ## Prerequisites
 
 - Python 3.11+
@@ -149,18 +151,31 @@ Step-by-step UI walkthrough: [Streamlit UI usage guide](docs/streamlit-ui-usage-
 | Mode | Behavior |
 |------|----------|
 | **advisory** (default) | Generate review brief; no merge |
-| **auto** | Approve/merge only if `ALLOW_WRITE_ACTIONS=true` and `SANDBOX_REPO` matches |
+| **auto** | Approve/merge only if `ALLOW_WRITE_ACTIONS=true`, `SANDBOX_REPO` matches, review **passed**, and PR is **not already merged** |
+
+If you submit an already-merged PR in **auto** mode, the agent shows a warning (*PR is already merged â€” please validate your input*) and skips approve/merge (`auto_skipped_already_merged`).
+
+## Governance checks (summary)
+
+| Check | When it runs | Fail review? |
+|-------|----------------|--------------|
+| Oracle dialect heuristics (`ROWNUM`, `(+)`, `SELECT *`) | Requirements eval (heuristic / LLM fallback) | Yes (high) |
+| **BigQuery SQL syntax** (sqlglot + trailing-comma rules) | Requirements eval (always on `.sql` changes) | Yes (high) |
+| LLM / RAG policy review | Requirements + security when LLM enabled | Yes (high/critical) |
+| PII / secrets heuristics | Security eval | Yes (critical) |
+| Optional Semgrep | When `ENABLE_SAST=true` | Depends on findings |
+| PR ingest failure | Missing PR / auth error | Yes (blocked, fail-closed) |
 
 ## Project layout
 
 ```
-src/pr_governance_agent/   # Agent core
-app/streamlit_app.py       # UI
-scripts/                   # CLI, ingest, setup, MCP bridge
-eval/                      # Offline eval cases
+src/pr_governance_agent/   # Agent core (graph, RAG, SQL validator, GitHub)
+app/streamlit_app.py       # Branded Streamlit UI
+scripts/                   # CLI, ingest, setup, connectivity, MCP bridge
+eval/                      # Offline eval cases (9 heuristic scenarios)
 data/sample_corpus/        # Policy documents (ingest into Chroma)
 data/sample.db             # Optional SQLite staging (seed script)
-docs/                      # Design + architecture
+docs/                      # Design, architecture, usage guides
 ```
 
 ## Tests
@@ -181,7 +196,13 @@ set HEURISTIC_ONLY=true
 pytest tests/ -q
 ```
 
-CI runs on every push/PR to `main` (`.github/workflows/ci.yml`): install, ingest, pytest, heuristic eval.
+CI runs on every push/PR to `main` (`.github/workflows/ci.yml`): install, ingest, pytest, heuristic eval (9 cases).
+
+**Connectivity check (optional):**
+
+```bash
+python scripts/check_connectivity.py
+```
 
 ### LLM-mode eval (requires `OPENAI_API_KEY`)
 

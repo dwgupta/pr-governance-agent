@@ -15,7 +15,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from pr_governance_agent.config import get_settings
+from pr_governance_agent.sql.bigquery_validator import bigquery_syntax_findings
 from pr_governance_agent.state import Finding, PRReviewState, RetrievalChunk
+from pr_governance_agent.usage import record_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +94,11 @@ def _heuristic_requirements(state: PRReviewState) -> list[Finding]:
     return findings
 
 
+def _requirements_deterministic_findings(state: PRReviewState) -> list[Finding]:
+    """Deterministic requirements checks: BigQuery syntax plus dialect heuristics."""
+    return bigquery_syntax_findings(state) + _heuristic_requirements(state)
+
+
 def _heuristic_security(state: PRReviewState) -> list[Finding]:
     """Regex checks for PII keywords and secrets in diffs."""
     findings: list[Finding] = []
@@ -152,7 +159,7 @@ def _fallback_findings(
         f"{FALLBACK_WARNING_PREFIX} ({kind}): {reason} — using heuristic checks instead.",
     )
     if kind == "requirements":
-        return _heuristic_requirements(state)
+        return deterministic if deterministic else _requirements_deterministic_findings(state)
     return _heuristic_security(state)
 
 
@@ -163,12 +170,18 @@ def evaluate_with_llm_or_heuristic(
 ) -> list[Finding]:
     """Evaluate PR patches for ``requirements`` or ``security`` using LLM or heuristics.
 
-    Mutates ``state["token_usage"]`` and ``state["warnings"]`` on LLM path.
+    Mutates ``state["token_usage"]`` (calls + token counts) and ``state["warnings"]`` on LLM path.
     """
     llm = _get_llm()
+    syntax_findings: list[Finding] = []
+    deterministic: list[Finding] = []
+    if kind == "requirements":
+        syntax_findings = bigquery_syntax_findings(state)
+        deterministic = syntax_findings + _heuristic_requirements(state)
+
     if llm is None:
         if kind == "requirements":
-            return _heuristic_requirements(state)
+            return deterministic
         return _heuristic_security(state)
 
     context = "\n\n".join(
@@ -197,13 +210,11 @@ def evaluate_with_llm_or_heuristic(
 
     try:
         resp = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=human)])
-        usage = state.get("token_usage") or {}
-        usage[kind] = usage.get(kind, 0) + 1
-        state["token_usage"] = usage
+        record_llm_call(state, kind, resp)
 
         text = resp.content if isinstance(resp.content, str) else str(resp.content)
         raw = _parse_findings_json(text)
-        return [
+        llm_findings = [
             Finding(
                 severity=item.get("severity", "medium"),
                 category=item.get("category", kind),
@@ -214,5 +225,15 @@ def evaluate_with_llm_or_heuristic(
             for item in raw
             if isinstance(item, dict)
         ]
+        if kind == "requirements":
+            return syntax_findings + llm_findings
+        return llm_findings
     except Exception as exc:
+        if kind == "requirements":
+            logger.warning("LLM %s evaluation failed: %s", kind, exc)
+            _append_warning(
+                state,
+                f"{FALLBACK_WARNING_PREFIX} ({kind}): {exc} — using heuristic checks instead.",
+            )
+            return deterministic
         return _fallback_findings(state, kind, str(exc))

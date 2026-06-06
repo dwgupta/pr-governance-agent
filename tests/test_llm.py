@@ -68,7 +68,9 @@ def test_llm_success_no_fallback_warning(mock_get_llm):
                     "citation": "dialect_conversion_guide.md / Common replacements",
                 }
             ]
-        )
+        ),
+        usage_metadata={"input_tokens": 512, "output_tokens": 64, "total_tokens": 576},
+        response_metadata={},
     )
     mock_get_llm.return_value = llm
 
@@ -91,7 +93,10 @@ def test_llm_success_no_fallback_warning(mock_get_llm):
 
     assert len(findings) == 1
     assert not any(FALLBACK_WARNING_PREFIX in w for w in state.get("warnings") or [])
-    assert state.get("token_usage", {}).get("requirements") == 1
+    usage = state.get("token_usage", {}).get("requirements") or {}
+    assert usage.get("calls") == 1
+    assert usage.get("input_tokens") == 512
+    assert usage.get("output_tokens") == 64
 
 
 @patch("pr_governance_agent.graph.llm._get_llm")

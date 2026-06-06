@@ -5,3 +5,11 @@
 # when torchvision is not installed (not required for this app).
 [server]
 fileWatcherType = "none"
+
+[theme]
+base = "light"
+primaryColor = "#9B7EDE"
+backgroundColor = "#FAFAFC"
+secondaryBackgroundColor = "#F0EBFA"
+textColor = "#2D2A3E"
+font = "sans serif"

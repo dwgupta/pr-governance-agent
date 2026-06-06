@@ -19,6 +19,15 @@ class RetrievalChunk(TypedDict):
     vector_score: NotRequired[float]  # original HNSW score when reranked
 
 
+class LLMCallUsage(TypedDict):
+    """Token counts for one LLM evaluation step (e.g. requirements or security)."""
+
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
 class Finding(TypedDict):
     """Single governance or security issue on a changed file."""
 
@@ -66,7 +75,7 @@ class PRReviewState(TypedDict, total=False):
     warnings: list[str]  # e.g. empty Chroma index, LLM fallback
 
     # --- Observability ---
-    token_usage: dict[str, int]  # per eval node invoke count
+    token_usage: dict[str, LLMCallUsage]  # per eval step (requirements, security)
     node_timings: dict[str, float]  # seconds per node name
 
 

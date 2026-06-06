@@ -15,6 +15,23 @@ from pr_governance_agent.rag.chroma_store import REQUIREMENTS_COLLECTION, SECURI
 from pr_governance_agent.security.sast_runner import run_semgrep_on_patches
 from pr_governance_agent.state import Finding, PRReviewState
 
+ALREADY_MERGED_WARNING = "PR is already merged — please validate your input."
+
+
+def _append_warning(state: PRReviewState, message: str) -> None:
+    warnings = list(state.get("warnings") or [])
+    if message not in warnings:
+        warnings.append(message)
+    state["warnings"] = warnings
+
+
+def _is_pr_merged(state: PRReviewState) -> bool:
+    """True when GitHub reports the pull request was merged."""
+    meta = state.get("pr_metadata") or {}
+    if meta.get("merged") is True:
+        return True
+    return bool(meta.get("merged_at"))
+
 
 def ingest_pr(state: PRReviewState) -> PRReviewState:
     """Fetch PR metadata and diffs from GitHub API, MCP bridge, or JSON fixture."""
@@ -40,6 +57,9 @@ def ingest_pr(state: PRReviewState) -> PRReviewState:
             state["ci_status"] = data.get("ci_status")
             state["repo"] = data.get("repo", state.get("repo", ""))
             state["pr_number"] = data.get("pr_number", state.get("pr_number", 0))
+
+            if state.get("mode") == "auto" and _is_pr_merged(state):
+                _append_warning(state, ALREADY_MERGED_WARNING)
         except Exception as exc:
             errors.append(f"ingest_pr: {exc}")
             state["errors"] = errors
@@ -236,29 +256,58 @@ def execute_github_advisory(state: PRReviewState) -> PRReviewState:
     return state
 
 
+def _is_self_approval_error(exc: Exception) -> bool:
+    """GitHub returns 422 when the PR author tries to approve their own PR."""
+    message = str(exc).lower()
+    if "approve your own pull request" in message or "can not approve your own" in message:
+        return True
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            body = response.text.lower()
+        except Exception:
+            body = ""
+        if "approve your own pull request" in body or "can not approve your own" in body:
+            return True
+    return False
+
+
 def execute_github_auto(state: PRReviewState) -> PRReviewState:
     """Auto path: approve/merge only when passed, mode=auto, and writes allowed."""
     with track_node(state, "execute_github_auto"):
         settings = get_settings()
         actions = list(state.get("github_actions_taken") or [])
+        errors = list(state.get("errors") or [])
         mode = state.get("mode", "advisory")
         repo = state.get("repo", "")
         pr_number = int(state.get("pr_number") or 0)
 
-        if (
+        if mode == "auto" and _is_pr_merged(state):
+            actions.append("auto_skipped_already_merged")
+            _append_warning(state, ALREADY_MERGED_WARNING)
+        elif (
             state.get("passed")
             and mode == "auto"
             and settings.writes_allowed(repo, mode)
             and pr_number
         ):
+            client = GitHubClient()
+            approve_ok = False
             try:
-                client = GitHubClient()
                 actions.append(client.approve_pr(repo, pr_number))
-                actions.append(client.merge_pr(repo, pr_number))
+                approve_ok = True
             except Exception as exc:
-                errors = list(state.get("errors") or [])
-                errors.append(f"auto_actions: {exc}")
-                state["errors"] = errors
+                if _is_self_approval_error(exc):
+                    actions.append("approve_skipped_self_author")
+                    approve_ok = True
+                else:
+                    errors.append(f"auto_actions approve: {exc}")
+
+            if approve_ok:
+                try:
+                    actions.append(client.merge_pr(repo, pr_number))
+                except Exception as exc:
+                    errors.append(f"auto_actions merge: {exc}")
         elif mode == "auto" and not settings.writes_allowed(repo, mode):
             actions.append("auto_skipped_writes_not_allowed")
         elif mode != "auto":
@@ -266,6 +315,8 @@ def execute_github_auto(state: PRReviewState) -> PRReviewState:
         else:
             actions.append("auto_skipped_failed_checks")
 
+        if errors:
+            state["errors"] = errors
         state["github_actions_taken"] = actions
     return state
 

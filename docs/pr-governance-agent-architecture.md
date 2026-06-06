@@ -112,6 +112,7 @@ flowchart TD
 
   subgraph eval_detail [evaluate_sources]
     HEU[Heuristic_rules]
+    BQSQL[BigQuery_syntax_sqlglot]
     OAI[OpenAI_LLM]
   end
   eval_req -.-> eval_detail
@@ -124,7 +125,7 @@ flowchart TD
 | `rag_requirements` | Chroma `requirements` | `requirements_chunks` |
 | `rag_security_policies` | Chroma `security_policies` | `security_policy_chunks` |
 | `run_sast_optional` | Patches, Semgrep CLI | `sast_findings` |
-| `evaluate_requirements` | Chunks + patches | `requirements_findings` |
+| `evaluate_requirements` | Chunks + patches | `requirements_findings` (incl. `sql_syntax`) |
 | `evaluate_security` | Chunks + patches + SAST | `security_findings` |
 | `synthesize_review` | All findings | `review_markdown` |
 | `route_decision` | Findings | `passed`, `blockers`, `overall_risk` |
@@ -183,13 +184,15 @@ sequenceDiagram
   participant GH as GitHubClient
 
   LG->>CFG: writes_allowed repo mode
-  alt passed and auto and ALLOW_WRITE_ACTIONS and SANDBOX_REPO match
+  alt PR already merged
+    LG->>LG: auto_skipped_already_merged plus warning
+  else passed and auto and ALLOW_WRITE_ACTIONS and SANDBOX_REPO match
     CFG-->>LG: true
-    LG->>GH: approve_pr
+    LG->>GH: approve_pr optional skip self-author
     LG->>GH: merge_pr
   else advisory or failed or flags off
     CFG-->>LG: false
-    LG->>LG: auto_skipped_writes_not_allowed
+    LG->>LG: auto_skipped_writes_not_allowed or auto_skipped_failed_checks
   end
 ```
 
@@ -250,6 +253,7 @@ capstone/
 ├── eval/                         # Offline test cases
 ├── src/pr_governance_agent/
 │   ├── graph/                    # LangGraph builder + nodes
+│   ├── sql/bigquery_validator.py # BigQuery SQL syntax on PR diffs
 │   ├── mcp/github_client.py      # GitHub REST / fixture / MCP hook
 │   ├── rag/chroma_store.py       # HNSW retrieval + rerank orchestration
 │   ├── rag/reranker.py           # CrossEncoder reranking
@@ -292,17 +296,20 @@ sequenceDiagram
 ```mermaid
 flowchart TD
   mode{mode}
+  merged{PR_already_merged}
   passed{passed}
   writes{ALLOW_WRITE_ACTIONS}
   sandbox{SANDBOX_REPO_match}
 
   mode -->|advisory| A[Generate review only]
-  mode -->|auto| B{passed}
+  mode -->|auto| merged
+  merged -->|yes| F[auto_skipped_already_merged plus warning]
+  merged -->|no| B{passed}
   B -->|no| C[Block merge notify failures]
   B -->|yes| writes
   writes -->|false| D[auto_skipped_writes_not_allowed]
   writes -->|true| sandbox
-  sandbox -->|yes| E[approve and merge]
+  sandbox -->|yes| E[approve optional skip self-author then merge]
   sandbox -->|no| D
 ```
 
@@ -316,4 +323,4 @@ flowchart TD
 
 ---
 
-*Last updated to match implemented codebase in `src/pr_governance_agent/`.*
+*Last updated: June 2026 — aligned with implemented codebase in `src/pr_governance_agent/`.*

@@ -15,3 +15,5 @@ Use `MERGE` for upserts with explicit join keys. Validate row counts between sou
 ## Validation
 
 Each converted script should run against a sampled dataset with reconciliation tolerance documented in the migration workbook.
+
+Pull requests that add or change SQL must pass BigQuery syntax validation before merge. See **BigQuery SQL syntax** in the migration requirements policy for blocked patterns and parser expectations.

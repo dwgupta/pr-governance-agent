@@ -66,6 +66,24 @@ def test_graph_detects_dialect_violation(app):
     assert len(findings) >= 1
 
 
+def test_graph_detects_invalid_bigquery_syntax(app, monkeypatch):
+    from pr_governance_agent.state import initial_state
+
+    monkeypatch.setenv(
+        "PR_FIXTURE_PATH",
+        str(ROOT / "eval" / "fixtures" / "pr_invalid_bq_syntax.json"),
+    )
+    state = initial_state(
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/3",
+        mode="advisory",
+    )
+    result = app.invoke(state, config={"configurable": {"thread_id": "test-bq-syntax"}})
+    assert result.get("passed") is False
+    assert result.get("overall_risk") in ("high", "blocked")
+    findings = result.get("requirements_findings") or []
+    assert any(f.get("category") == "sql_syntax" for f in findings)
+
+
 def test_chroma_store_query():
     from pr_governance_agent.rag.chroma_store import REQUIREMENTS_COLLECTION, ChromaStore
 
@@ -125,3 +143,114 @@ def test_route_decision_fail_closed_on_ingest_error():
     assert "PR ingest failed; cannot evaluate governance safely" in (
         result.get("blockers") or []
     )
+
+
+def test_execute_github_auto_skips_self_approval_and_merges(monkeypatch):
+    from pr_governance_agent.graph import nodes
+    from pr_governance_agent.state import initial_state
+
+    class FakeClient:
+        def approve_pr(self, repo: str, pr_number: int) -> str:
+            raise RuntimeError(
+                "Client error '422 Unprocessable Entity' ... "
+                "Review Can not approve your own pull request"
+            )
+
+        def merge_pr(self, repo: str, pr_number: int) -> str:
+            return "merged"
+
+    monkeypatch.setattr(nodes, "GitHubClient", FakeClient)
+    monkeypatch.setenv("ALLOW_WRITE_ACTIONS", "true")
+    monkeypatch.setenv("SANDBOX_REPO", "dwgupta/migration-sandbox-capstone")
+    from pr_governance_agent.config import get_settings
+
+    get_settings.cache_clear()
+
+    state = initial_state(
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
+        mode="auto",
+        repo="dwgupta/migration-sandbox-capstone",
+        pr_number=1,
+    )
+    state["passed"] = True
+    state["github_actions_taken"] = ["advisory_review_generated"]
+
+    result = nodes.execute_github_auto(state)
+    actions = result.get("github_actions_taken") or []
+    assert "approve_skipped_self_author" in actions
+    assert "merged" in actions
+    assert not result.get("errors")
+
+
+def test_execute_github_auto_skips_already_merged_pr(monkeypatch):
+    from pr_governance_agent.graph import nodes
+    from pr_governance_agent.state import initial_state
+
+    class FakeClient:
+        def approve_pr(self, repo: str, pr_number: int) -> str:
+            raise AssertionError("should not approve merged PR")
+
+        def merge_pr(self, repo: str, pr_number: int) -> str:
+            raise AssertionError("should not merge merged PR")
+
+    monkeypatch.setattr(nodes, "GitHubClient", FakeClient)
+    monkeypatch.setenv("ALLOW_WRITE_ACTIONS", "true")
+    monkeypatch.setenv("SANDBOX_REPO", "dwgupta/migration-sandbox-capstone")
+    from pr_governance_agent.config import get_settings
+
+    get_settings.cache_clear()
+
+    state = initial_state(
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
+        mode="auto",
+        repo="dwgupta/migration-sandbox-capstone",
+        pr_number=1,
+    )
+    state["passed"] = True
+    state["pr_metadata"] = {
+        "title": "Already merged",
+        "merged": True,
+        "merged_at": "2026-06-01T12:00:00Z",
+        "state": "closed",
+    }
+    state["github_actions_taken"] = ["advisory_review_generated"]
+
+    result = nodes.execute_github_auto(state)
+    actions = result.get("github_actions_taken") or []
+    assert "auto_skipped_already_merged" in actions
+    assert "approved" not in actions
+    assert "merged" not in actions
+    assert nodes.ALREADY_MERGED_WARNING in (result.get("warnings") or [])
+
+
+def test_ingest_pr_warns_on_merged_pr_in_auto_mode(monkeypatch):
+    from pr_governance_agent.graph import nodes
+    from pr_governance_agent.state import initial_state
+
+    def fake_fetch(self, pr_url: str):
+        return {
+            "pr_url": pr_url,
+            "repo": "dwgupta/migration-sandbox-capstone",
+            "pr_number": 1,
+            "pr_metadata": {
+                "title": "Merged PR",
+                "merged": True,
+                "merged_at": "2026-06-01T12:00:00Z",
+                "state": "closed",
+            },
+            "changed_files": [],
+            "patches": [],
+            "ci_status": None,
+        }
+
+    monkeypatch.setattr(
+        "pr_governance_agent.graph.nodes.GitHubClient.fetch_pr",
+        fake_fetch,
+    )
+
+    state = initial_state(
+        pr_url="https://github.com/dwgupta/migration-sandbox-capstone/pull/1",
+        mode="auto",
+    )
+    result = nodes.ingest_pr(state)
+    assert nodes.ALREADY_MERGED_WARNING in (result.get("warnings") or [])

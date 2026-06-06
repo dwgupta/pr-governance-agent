@@ -128,6 +128,8 @@ class GitHubClient:
                 "title": pr_data.get("title"),
                 "body": pr_data.get("body"),
                 "state": pr_data.get("state"),
+                "merged": bool(pr_data.get("merged")),
+                "merged_at": pr_data.get("merged_at"),
                 "user": (pr_data.get("user") or {}).get("login"),
                 "base": (pr_data.get("base") or {}).get("ref"),
                 "head": (pr_data.get("head") or {}).get("ref"),
