@@ -77,17 +77,21 @@ def check_langchain() -> tuple[str, str, str]:
     try:
         from langchain_openai import ChatOpenAI
 
-        kwargs = {
+        kwargs: dict = {
             "model": settings.openai_model,
             "api_key": settings.openai_api_key,
             "temperature": 0,
-            "max_tokens": 1,
+            # Some models (e.g. gpt-5.x) cannot complete within max_tokens=1.
+            "max_tokens": 32,
         }
         if settings.openai_api_base:
             kwargs["base_url"] = settings.openai_api_base
 
         llm = ChatOpenAI(**kwargs)
-        _ = llm.invoke("Return OK")
+        resp = llm.invoke("Reply with exactly the word OK and nothing else.")
+        text = resp.content if isinstance(resp.content, str) else str(resp.content)
+        if not text.strip():
+            return _fail("langchain", "ChatOpenAI returned an empty response")
         return _ok("langchain", f"ChatOpenAI invocation succeeded ({settings.openai_model})")
     except Exception as exc:
         return _fail("langchain", str(exc))
@@ -98,29 +102,38 @@ def check_langsmith() -> tuple[str, str, str]:
     if not settings.langsmith_api_key.strip():
         return _warn("langsmith", "LANGSMITH_API_KEY is not set")
     endpoint = (settings.langsmith_endpoint or "https://api.smith.langchain.com").rstrip("/")
+    project = settings.langsmith_project.strip() or "default"
     try:
-        # Prefer official SDK for compatibility across API path versions.
+        import uuid
+
         from langsmith import Client
 
         client = Client(api_key=settings.langsmith_api_key, api_url=endpoint)
         _ = next(client.list_projects(limit=1), None)
-        return _ok("langsmith", f"LangSmith SDK connected to {endpoint}")
+
+        # Read access alone is not enough — verify run ingest (write) works.
+        probe_id = uuid.uuid4()
+        client.create_run(
+            id=probe_id,
+            name="pr_governance_connectivity_probe",
+            run_type="chain",
+            inputs={"probe": "ok"},
+            project_name=project,
+        )
+        return _ok(
+            "langsmith",
+            f"LangSmith read+write OK at {endpoint} (project={project})",
+        )
     except Exception as exc:
-        # Fallback probe for installs where SDK behavior differs.
-        headers = {"x-api-key": settings.langsmith_api_key}
-        candidate_paths = ["/api/v1/projects", "/projects", "/runs/multipart"]
-        try:
-            with httpx.Client(timeout=20.0) as http:
-                for path in candidate_paths:
-                    resp = http.get(f"{endpoint}{path}", headers=headers, params={"limit": 1})
-                    if resp.status_code in (200, 401, 403):
-                        return _ok(
-                            "langsmith",
-                            f"LangSmith API reachable at {endpoint}{path} (HTTP {resp.status_code})",
-                        )
-            return _fail("langsmith", f"No supported LangSmith endpoint responded cleanly: {exc}")
-        except Exception as fallback_exc:
-            return _fail("langsmith", f"{exc}; fallback probe failed: {fallback_exc}")
+        message = str(exc)
+        if "403" in message or "Forbidden" in message:
+            return _fail(
+                "langsmith",
+                "API key cannot ingest runs (403). Create a LangSmith API key with "
+                "write access at https://smith.langchain.com/settings and ensure "
+                f"LANGSMITH_PROJECT={project!r} exists in that workspace.",
+            )
+        return _fail("langsmith", message)
 
 
 def check_chroma() -> tuple[str, str, str]:
